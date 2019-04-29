@@ -45,7 +45,6 @@ public class ManipulatorToolsEditor : ModuleRules
                 //"MovieSceneTools",
                 "MovieSceneTracks",
                 "Sequencer",
-				"PlacementMode",
 				"ManipulatorTools",
 				// ... add private dependencies that you statically link with here ...	
 			}

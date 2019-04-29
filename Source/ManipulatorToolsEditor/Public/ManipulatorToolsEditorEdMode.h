@@ -4,13 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "EdMode.h"
-#include "PlacementMode/Private/PlacementMode.h"
 #include "Sequencer/Public/ISequencer.h"
 #include "Sequencer/Public/ISequencerModule.h"
 #include "ManipulatorComponent.h"
 
 
-class FManipulatorToolsEditorEdMode : public FPlacementMode
+class FManipulatorToolsEditorEdMode : public FEdMode
 {
 public:
 	const static FEditorModeID EM_ManipulatorToolsEditorEdModeId;
