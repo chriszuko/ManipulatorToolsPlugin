@@ -47,6 +47,10 @@ struct FManipulatorSettingsMainDrawWireBox
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FBox BoxSize = FBox(FVector(-5, -5, -5), FVector(5, 5, 5));
+
+	/** Offset Visually*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FTransform> Offsets;
 };
 
 // Specific Settings for Wire Diamonds
@@ -60,6 +64,10 @@ struct FManipulatorSettingsMainDrawWireDiamond
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float Size = 10.0f;
+
+	/** Offset Visually*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FTransform> Offsets;
 };
 
 // Specific Settings for Planes
@@ -79,6 +87,10 @@ struct FManipulatorSettingsMainDrawPlane
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float UVMax = 1.0f;
+
+	/** Offset Visually*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FTransform> Offsets;
 };
 
 USTRUCT(BlueprintType)
@@ -91,6 +103,9 @@ struct FManipulatorSettingsMainDrawCircle
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FVector YVector = FVector(0, 1, 0);
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FRotator Rotation;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float Radius = 2.0f;
@@ -100,6 +115,10 @@ struct FManipulatorSettingsMainDrawCircle
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float NumSides = 24.0f;
+
+	/** Offset Visually*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FTransform> Offsets;
 };
 
 USTRUCT(BlueprintType)
@@ -148,6 +167,7 @@ struct FManipulatorSettingsMainPropertyTypeEnum
 	uint8 EnumSize = 10;
 };
 
+// Being Moved
 USTRUCT(BlueprintType)
 struct FManipulatorSettingsMainAdvanced
 {
@@ -163,23 +183,128 @@ struct FManipulatorSettingsMainAdvanced
 	bool FlipVisualXScale = false;
 };
 
+USTRUCT(BlueprintType)
+struct FManipulatorSettingsMainDrawShapes
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FManipulatorSettingsMainDrawWireBox> WireBoxes;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FManipulatorSettingsMainDrawWireDiamond> WireDiamonds;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FManipulatorSettingsMainDrawCircle> WireCircles;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FManipulatorSettingsMainDrawPlane> Planes;
+};
+
+USTRUCT(BlueprintType)
+struct FManipulatorSettingsMainDrawExtras
+{
+	GENERATED_USTRUCT_BODY()
+
+	/** Sets whether a manipulator will draw like any other object or through every object*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TEnumAsByte<ESceneDepthPriorityGroup> DepthPriorityGroup = ESceneDepthPriorityGroup::SDPG_Foreground;
+
+	/** Zoom Offset allows the manipulator to keep its size relative to camera distance. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool UseZoomOffset = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool FlipVisualXLocation = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool FlipVisualYRotation = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool FlipVisualXScale = false;
+};
+
+USTRUCT(BlueprintType)
+struct FManipulatorSettingsMainDraw
+{
+	GENERATED_USTRUCT_BODY()
+
+	/** Default Color */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FLinearColor BaseColor = FLinearColor(0.15f, 0.5f, 0.7f, 1);
+
+	/** Color When Selected */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FLinearColor SelectedColor = FLinearColor(0.5f, 0.8f, 1, 1);
+
+	/** In order from top to bottom if you want to have easy control of your offsets*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FTransform> Offsets;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FManipulatorSettingsMainDrawShapes Shapes;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FManipulatorSettingsMainDrawExtras Extras;
+};
+
+USTRUCT(BlueprintType)
+struct FManipulatorSettingsMainProperty
+{
+	GENERATED_USTRUCT_BODY()
+
+	/** Property name that you created in your blueprint to link to and edit automatically If the name matches and is the correct type then it will automatically connect to it without any additional support needed from your blueprint.*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FString NameToEdit = "None";
+
+	/** Make sure the property type matches the property name you are trying to modify */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EManipulatorPropertyType Type = EManipulatorPropertyType::MT_TRANSFORM;
+
+	/** For Arrays you can specifically tell which index to point to, this is ignored if your property is not an array. This would typically be used only if you were auto creating manipulators and attaching them to an array */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int Index = 0;
+
+	/** Settings specifically for Enum Properties */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FManipulatorSettingsMainPropertyTypeEnum EnumSettings;
+};
+
+
+
+
 // Overall Settings ( A struct format allows for an easy way to copy data from one to another )
 USTRUCT(BlueprintType)
 struct FManipulatorSettingsMain
 {
 	GENERATED_USTRUCT_BODY()
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FManipulatorSettingsMainProperty Property;
+
+	/** This is the main struct for all display settings. You can add as many types of display to the same manipulator. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FManipulatorSettingsMainDraw Draw;
+
+	/** Constrains Manipulator Vectors and Transforms based off of a min max value on location and scale */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FManipulatorSettingsMainConstraints Constraints;
+
+	/** ----------------------------------------------------- */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float OOOOOOOOOOOOOOOOOOOOOOOOO;
+
 	/** Property name that you created in your blueprint to link to and edit automatically If the name matches and is the correct type then it will automatically connect to it without any additional support needed from your blueprint.*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FString PropertyNameToEdit = "None";
 
-	/** For Arrays you can specifically tell which index to point to, this is ignored if your property is not an array. This would typically be used only if you were auto creating manipulators and attaching them to an array */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	int PropertyIndex = 0;
-
 	/** Make sure the property type matches the property name you are trying to modify */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	EManipulatorPropertyType PropertyType = EManipulatorPropertyType::MT_TRANSFORM;
+
+	/** For Arrays you can specifically tell which index to point to, this is ignored if your property is not an array. This would typically be used only if you were auto creating manipulators and attaching them to an array */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int PropertyIndex = 0;
 
 	/** These are the different allowed draw types for manipulators, Each one has their own individual types of settings */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, DisplayName = "PropertyDrawType")
@@ -212,10 +337,6 @@ struct FManipulatorSettingsMain
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, DisplayName = "VisualOffset")
 	FTransform ManipulatorVisualOffset;
 
-	/** Constrains Manipulator Vectors and Transforms based off of a min max value on location and scale */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FManipulatorSettingsMainConstraints ConstraintSettings;
-
 	/** Specific settings for Wire Box Draw Type */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, DisplayName = "SettingsDrawWireBox")
 	FManipulatorSettingsMainDrawWireBox WireBoxSettings;
@@ -232,10 +353,13 @@ struct FManipulatorSettingsMain
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, DisplayName = "SettingsDrawCircle")
 	FManipulatorSettingsMainDrawCircle CircleSettings;
 
-
 	/** Specific Settings for Draw Plane */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FManipulatorSettingsMainAdvanced AdvancedSettings;
+
+	/** Constrains Manipulator Vectors and Transforms based off of a min max value on location and scale */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FManipulatorSettingsMainConstraints ConstraintSettings;
 };
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent), hidecategories = ("Rendering" , "Physics" , "ComponentReplication" , "LOD", "AssetUserData", "Collision", "Cooking", "Activation"))
@@ -259,9 +383,9 @@ public:
 	UFUNCTION(BlueprintCallable, DisplayName = "SetVisualOffset")
 	void SetManipulatorVisualOffset(FTransform ManipulatorVisualOffset);
 
-	// Helper function to get tags for automatic generation of key tracks through python.
-	UFUNCTION(BlueprintCallable, BlueprintPure)
-	FString GetTagForSequencer();
+	// Easy Way to set the colors without navigating through the struct
+	UFUNCTION(BlueprintCallable)
+	void TransferOldSettingsToNewFormat();
 
 protected:
 	// Called when the game starts

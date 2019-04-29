@@ -1,6 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "ManipulatorComponent.h"
+#include "..\Public\ManipulatorComponent.h"
 
 // Sets default values for this component's properties
 UManipulatorComponent::UManipulatorComponent()
@@ -48,27 +49,9 @@ void UManipulatorComponent::SetManipulatorVisualOffset(FTransform ManipulatorVis
 	this->Settings.ManipulatorVisualOffset = ManipulatorVisualOffset;
 }
 
-// Get Auto Key Tag separated so I can call it in a blueprint as well.
-FString UManipulatorComponent::GetTagForSequencer()
+void UManipulatorComponent::TransferOldSettingsToNewFormat()
 {
-	FString TagPrefix = "";
-
-	switch (this->Settings.PropertyType)
-	{
-	case EManipulatorPropertyType::MT_TRANSFORM:
-		TagPrefix = "transform_";
-		break;
-	case EManipulatorPropertyType::MT_VECTOR:
-		TagPrefix = "vector_";
-		break;
-	case EManipulatorPropertyType::MT_ENUM:
-		TagPrefix = "byte_";
-		break;
-	case EManipulatorPropertyType::MT_BOOL:
-		TagPrefix = "bool_";
-		break;
-	}
-	return TagPrefix + Settings.PropertyNameToEdit;
+	Settings.Draw.BaseColor = Settings.Color;
 }
 
 // Called when the game starts
@@ -82,7 +65,7 @@ bool UManipulatorComponent::CanEditChange(const UProperty* InProperty) const
 {
 	const bool ParentVal = Super::CanEditChange(InProperty);
 
-	if (InProperty->GetFName() == "PropertyEnumSettings")
+	if (InProperty->GetFName() == "EnumSettings")
 	{
 		return Settings.PropertyType == EManipulatorPropertyType::MT_ENUM;
 	}
@@ -97,26 +80,6 @@ bool UManipulatorComponent::CanEditChange(const UProperty* InProperty) const
 		{
 			return false;
 		}
-	}
-
-	if (InProperty->GetFName() == "WireBoxSettings")
-	{
-		return Settings.ManipulatorDrawType == EManipulatorPropertyDrawType::MDT_BOXWIRE;
-	}
-
-	if (InProperty->GetFName() == "WireDiamondSettings")
-	{
-		return Settings.ManipulatorDrawType == EManipulatorPropertyDrawType::MDT_DIAMONDWIRE;
-	}
-
-	if (InProperty->GetFName() == "PlaneSettings")
-	{
-		return Settings.ManipulatorDrawType == EManipulatorPropertyDrawType::MDT_PLANE;
-	}
-
-	if (InProperty->GetFName() == "CircleSettings")
-	{
-		return Settings.ManipulatorDrawType == EManipulatorPropertyDrawType::MDT_CIRCLE;
 	}
 
 	return ParentVal;
