@@ -117,7 +117,7 @@ struct FManipulatorSettingsMainDrawCircle
 	float NumSides = 24.0f;
 
 	/** Offset Visually*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay)
 	TArray<FTransform> Offsets;
 };
 
@@ -210,6 +210,10 @@ struct FManipulatorSettingsMainDrawExtras
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TEnumAsByte<ESceneDepthPriorityGroup> DepthPriorityGroup = ESceneDepthPriorityGroup::SDPG_Foreground;
 
+	/** By Default, Vectors and Transforms use their data as the first visual offset for the manipulator. Turning it off means you have to handle it manually for specific cases. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool UsePropertyValueAsInitialOffset = true;
+
 	/** Zoom Offset allows the manipulator to keep its size relative to camera distance. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool UseZoomOffset = false;
@@ -270,9 +274,6 @@ struct FManipulatorSettingsMainProperty
 	FManipulatorSettingsMainPropertyTypeEnum EnumSettings;
 };
 
-
-
-
 // Overall Settings ( A struct format allows for an easy way to copy data from one to another )
 USTRUCT(BlueprintType)
 struct FManipulatorSettingsMain
@@ -289,10 +290,6 @@ struct FManipulatorSettingsMain
 	/** Constrains Manipulator Vectors and Transforms based off of a min max value on location and scale */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FManipulatorSettingsMainConstraints Constraints;
-
-	/** ----------------------------------------------------- */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float OOOOOOOOOOOOOOOOOOOOOOOOO;
 
 	/** Property name that you created in your blueprint to link to and edit automatically If the name matches and is the correct type then it will automatically connect to it without any additional support needed from your blueprint.*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -371,6 +368,9 @@ public:
 	// Sets default values for this component's properties
 	UManipulatorComponent();
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FManipulatorSettingsMain Settings;
+
 	// This is handled automatically by the editor mode, however you can use this to modify other transforms easily.
 	UFUNCTION(BlueprintCallable, BlueprintPure)
 	FTransform ConstrainTransform(FTransform Transform);
@@ -392,10 +392,6 @@ protected:
 	virtual void BeginPlay() override;
 
 public:	
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
-	FManipulatorSettingsMain Settings;
-
 #if WITH_EDITOR
 	virtual bool CanEditChange(const UProperty* InProperty) const override;
 #endif

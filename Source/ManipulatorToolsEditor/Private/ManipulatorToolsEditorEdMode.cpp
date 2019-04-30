@@ -227,12 +227,12 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 					// Set the hit proxy in the primitive draw interface. This allows us to change the widget location in HandleClick() when clicking a proxy. 
 					// This hit proxy will automatically attach to the next thing we tell to draw. 
 					PDI->SetHitProxy(new HManipulatorProxy(ManipulatorComponent));
-
+					
 					// Set Color Based off of selection, bools handle their selection a bit different. 
-					FLinearColor DrawColor = ManipulatorComponent->Settings.Color;
-					if ((ManipulatorComponent->GetName() == EditedComponentName && ManipulatorComponent->Settings.PropertyNameToEdit == EditedPropertyName && ManipulatorComponent->GetOwner()->GetName() == EditedActorName) || GetBoolPropertyValue(ManipulatorComponent))
+					FLinearColor DrawColor = ManipulatorComponent->Settings.Draw.BaseColor;
+					if ((ManipulatorComponent->GetName() == EditedComponentName && ManipulatorComponent->Settings.Property.NameToEdit == EditedPropertyName && ManipulatorComponent->GetOwner()->GetName() == EditedActorName) || GetBoolPropertyValue(ManipulatorComponent))
 					{
-						DrawColor = ManipulatorComponent->Settings.SelectedColor;
+						DrawColor = ManipulatorComponent->Settings.Draw.SelectedColor;
 					}
 
 					FTransform WidgetTransform = GetManipulatorTransformWithOffsets(ManipulatorComponent);
@@ -242,13 +242,13 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 					FBox BoxSize;
 
 					// offset based on zoom if in settings
-					if (ManipulatorComponent->Settings.DrawUsingZoomOffset)
+					if (ManipulatorComponent->Settings.Draw.Extras.UseZoomOffset)
 					{
 						const float ZoomFactor = FMath::Min<float>(View->ViewMatrices.GetProjectionMatrix().M[0][0], View->ViewMatrices.GetProjectionMatrix().M[1][1]);
 						WidgetSizeMultiplier = View->Project(WidgetTransform.GetTranslation()).W * 0.0065f / ZoomFactor;
 					}
 
-					ESceneDepthPriorityGroup WidgetDepthPriority = ManipulatorComponent->Settings.DepthPriorityGroup;
+					ESceneDepthPriorityGroup WidgetDepthPriority = ManipulatorComponent->Settings.Draw.Extras.DepthPriorityGroup;
 
 					// draw Specified Type
 					switch (ManipulatorComponent->Settings.ManipulatorDrawType)
@@ -309,17 +309,17 @@ bool FManipulatorToolsEditorEdMode::HandleClick(FEditorViewportClient * InViewpo
 	{
 		HManipulatorProxy* PropertyProxy = (HManipulatorProxy*)HitProxy;
 		//Handle Toggling Bool on and Off.
-		if (PropertyProxy->ManipulatorComponent->Settings.PropertyType == EManipulatorPropertyType::MT_BOOL)
+		if (PropertyProxy->ManipulatorComponent->Settings.Property.Type == EManipulatorPropertyType::MT_BOOL)
 		{
 			ToggleBoolPropertyValue(PropertyProxy->ManipulatorComponent);
 		}
 		else
 		{
-			EditedPropertyName = PropertyProxy->ManipulatorComponent->Settings.PropertyNameToEdit;
+			EditedPropertyName = PropertyProxy->ManipulatorComponent->Settings.Property.NameToEdit;
 			EditedActorName = PropertyProxy->ManipulatorComponent->GetOwner()->GetName();
-			EManipulatorPropertyType propertyType = PropertyProxy->ManipulatorComponent->Settings.PropertyType;
+			EManipulatorPropertyType propertyType = PropertyProxy->ManipulatorComponent->Settings.Property.Type;
 			EditedComponentName = PropertyProxy->ManipulatorComponent->GetName();
-			EditedPropertyIndex = PropertyProxy->ManipulatorComponent->Settings.PropertyIndex;
+			EditedPropertyIndex = PropertyProxy->ManipulatorComponent->Settings.Property.Index;
 			HandleSequencerTrackSelection(propertyType, FName(*EditedPropertyName), PropertyProxy->ManipulatorComponent);
 		}
 		return true;
@@ -381,7 +381,7 @@ bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewport
 				float CurrentFloat = 0;
 
 				// Get the property values based off of their type on the component and the name on the component.
-				switch (ManipulatorComponent->Settings.PropertyType)
+				switch (ManipulatorComponent->Settings.Property.Type)
 				{
 				case EManipulatorPropertyType::MT_TRANSFORM:
 					// Get Property Here
@@ -397,13 +397,13 @@ bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewport
 				}
 
 				// Use the visual offset to correctly translate information on super visually offset widgets.
-				if (!ManipulatorComponent->Settings.IgnorePropertyValueForVisualOffset)
+				if (ManipulatorComponent->Settings.Draw.Extras.UsePropertyValueAsInitialOffset)
 				{
 					WidgetTransform.SetRotation(WidgetTransform.GetRotation() * ManipulatorComponent->Settings.ManipulatorVisualOffset.GetRotation());
 				}
 
 				// Flip Transforms if told to flip X
-				LocalTM = FlipTransformOnX(LocalTM, ManipulatorComponent->Settings.AdvancedSettings.FlipVisualXLocation, ManipulatorComponent->Settings.AdvancedSettings.FlipVisualYRotation, ManipulatorComponent->Settings.AdvancedSettings.FlipVisualXScale);
+				LocalTM = FlipTransformOnX(LocalTM, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXLocation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualYRotation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXScale);
 
 				// Calculate world transform
 				NewTM = LocalTM * WidgetTransform;
@@ -419,7 +419,7 @@ bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewport
 				LocalTM.SetScale3D(LocalTM.GetScale3D() + InScale);
 
 				// Flip Transform Back so the values are correct
-				LocalTM = FlipTransformOnX(LocalTM, ManipulatorComponent->Settings.AdvancedSettings.FlipVisualXLocation, ManipulatorComponent->Settings.AdvancedSettings.FlipVisualYRotation, ManipulatorComponent->Settings.AdvancedSettings.FlipVisualXScale);
+				LocalTM = FlipTransformOnX(LocalTM, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXLocation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualYRotation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXScale);
 
 				LocalTM = ManipulatorComponent->ConstrainTransform(LocalTM);
 
@@ -477,7 +477,7 @@ bool FManipulatorToolsEditorEdMode::GetCustomDrawingCoordinateSystem(FMatrix& In
 		UObject* BestSelectedItem = GetObjectToDisplayWidgetsFor(DisplayWidgetToWorld, ManipulatorComponent);
 		if (BestSelectedItem && EditedPropertyName != TEXT(""))
 		{
-			switch (ManipulatorComponent->Settings.PropertyType)
+			switch (ManipulatorComponent->Settings.Property.Type)
 			{
 			case EManipulatorPropertyType::MT_TRANSFORM:
 
@@ -506,10 +506,10 @@ void FManipulatorToolsEditorEdMode::ActorSelectionChangeNotify()
 uint8 FManipulatorToolsEditorEdMode::CalculateEnumPropertyInputDelta(UManipulatorComponent* ManipulatorComponent, FTransform LocalTM, uint8 EnumInput)
 {
 	//Use the direction vector * Step to calulate the offset position of the current enum.
-	FManipulatorSettingsMainPropertyTypeEnum EnumSettings = ManipulatorComponent->Settings.PropertyEnumSettings;
+	FManipulatorSettingsMainPropertyTypeEnum EnumSettings = ManipulatorComponent->Settings.Property.EnumSettings;
 	float AxisCheck = 0;
 	float EnumAsFloat = EnumInput;
-	switch (ManipulatorComponent->Settings.PropertyEnumSettings.Direction)
+	switch (ManipulatorComponent->Settings.Property.EnumSettings.Direction)
 	{
 	case EManipulatorPropertyEnumDirection::MT_X:
 		AxisCheck = LocalTM.GetLocation().X;
@@ -539,13 +539,13 @@ bool FManipulatorToolsEditorEdMode::GetBoolPropertyValue(UManipulatorComponent* 
 {
 	// Used to tell bools when to change color.
 	bool Output = false;
-	if (ManipulatorComponent->Settings.PropertyType == EManipulatorPropertyType::MT_BOOL)
+	if (ManipulatorComponent->Settings.Property.Type == EManipulatorPropertyType::MT_BOOL)
 	{
 		FTransform WidgetTransform;
 		UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFor(WidgetTransform, ManipulatorComponent);
 		if (ObjectToEditProperties != nullptr)
 		{
-			Output = GetPropertyValueByName<bool>(ObjectToEditProperties, ManipulatorComponent->Settings.PropertyNameToEdit, ManipulatorComponent->Settings.PropertyIndex);
+			Output = GetPropertyValueByName<bool>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index);
 		}
 	}
 	return Output;
@@ -561,12 +561,12 @@ void FManipulatorToolsEditorEdMode::ToggleBoolPropertyValue(UManipulatorComponen
 		UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFor(WidgetTransform, ManipulatorComponent);
 		if (ObjectToEditProperties != nullptr)
 		{
-			CurrentBool = GetPropertyValueByName<bool>(ObjectToEditProperties, ManipulatorComponent->Settings.PropertyNameToEdit, ManipulatorComponent->Settings.PropertyIndex);
+			CurrentBool = GetPropertyValueByName<bool>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index);
 
 			// Set Bool Value
 			ObjectToEditProperties->PreEditChange(NULL);
 			UProperty* SetProperty = NULL;
-			SetPropertyValueByName<bool>(ObjectToEditProperties, ManipulatorComponent->Settings.PropertyNameToEdit, ManipulatorComponent->Settings.PropertyIndex, !CurrentBool, SetProperty);
+			SetPropertyValueByName<bool>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index, !CurrentBool, SetProperty);
 
 			KeyProperty(ObjectToEditProperties, SetProperty);
 
@@ -626,17 +626,17 @@ FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UMa
 	UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFor(WidgetTransform, ManipulatorComponent);
 
 	// Handle offsets per property type bools are ignored in here because they are essentially world buttons.
-	switch (ManipulatorComponent->Settings.PropertyType)
+	switch (ManipulatorComponent->Settings.Property.Type)
 	{
 	case EManipulatorPropertyType::MT_ENUM:
 		if (ObjectToEditProperties != nullptr)
 		{
-			EnumValue = GetPropertyValueByName<uint8>(ObjectToEditProperties, ManipulatorComponent->Settings.PropertyNameToEdit, ManipulatorComponent->Settings.PropertyIndex);
+			EnumValue = GetPropertyValueByName<uint8>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index);
 
 			//Use the direction vector * Step to calulate the offset position of the current enum.
-			FManipulatorSettingsMainPropertyTypeEnum Settings = ManipulatorComponent->Settings.PropertyEnumSettings;
+			FManipulatorSettingsMainPropertyTypeEnum Settings = ManipulatorComponent->Settings.Property.EnumSettings;
 
-			switch (ManipulatorComponent->Settings.PropertyEnumSettings.Direction)
+			switch (ManipulatorComponent->Settings.Property.EnumSettings.Direction)
 			{
 			case EManipulatorPropertyEnumDirection::MT_X:
 				EnumPropertyOffset.X = Settings.StepSize * EnumValue;
@@ -652,21 +652,21 @@ FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UMa
 		break;
 	case EManipulatorPropertyType::MT_TRANSFORM:
 	{
-		RelativeTransform = GetPropertyValueByName<FTransform>(ObjectToEditProperties, ManipulatorComponent->Settings.PropertyNameToEdit, ManipulatorComponent->Settings.PropertyIndex);
+		RelativeTransform = GetPropertyValueByName<FTransform>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index);
 		break;
 	}
 	case EManipulatorPropertyType::MT_VECTOR:
 	{
-		RelativeTransform = FTransform(GetPropertyValueByName<FVector>(ObjectToEditProperties, ManipulatorComponent->Settings.PropertyNameToEdit, ManipulatorComponent->Settings.PropertyIndex));
+		RelativeTransform = FTransform(GetPropertyValueByName<FVector>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index));
 		break;
 	}
 	}
 
 	// Constrain the relative transform via the manipulator components settings.
 	RelativeTransform = ManipulatorComponent->ConstrainTransform(RelativeTransform);
-	RelativeTransform = FlipTransformOnX(RelativeTransform, ManipulatorComponent->Settings.AdvancedSettings.FlipVisualXLocation, ManipulatorComponent->Settings.AdvancedSettings.FlipVisualYRotation, ManipulatorComponent->Settings.AdvancedSettings.FlipVisualXScale);
+	RelativeTransform = FlipTransformOnX(RelativeTransform, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXLocation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualYRotation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXScale);
 
-	if (ManipulatorComponent->Settings.IgnorePropertyValueForVisualOffset)
+	if (!ManipulatorComponent->Settings.Draw.Extras.UsePropertyValueAsInitialOffset)
 	{
 		RelativeTransform = FTransform::Identity;
 	}
@@ -704,7 +704,7 @@ bool FManipulatorToolsEditorEdMode::GetSelectedManipulatorComponent( UManipulato
 				UManipulatorComponent* ManipulatorComponent = Cast<UManipulatorComponent>(ActorComponent);
 				if (ManipulatorComponent != nullptr)
 				{
-					if (ManipulatorComponent->Settings.PropertyNameToEdit == EditedPropertyName && ManipulatorComponent->GetName() == EditedComponentName)
+					if (ManipulatorComponent->Settings.Property.NameToEdit == EditedPropertyName && ManipulatorComponent->GetName() == EditedComponentName)
 					{
 						OutComponent = ManipulatorComponent;
 						OutWidgetTransform = ManipulatorComponent->GetComponentToWorld();
