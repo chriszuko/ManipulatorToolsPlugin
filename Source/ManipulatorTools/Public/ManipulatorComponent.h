@@ -40,6 +40,9 @@ struct FManipulatorSettingsMainDrawWireBox
 	GENERATED_USTRUCT_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FLinearColor Color = FLinearColor(1.0f, 1.0f, 1.0f, 1);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float DrawThickness = 2.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -60,6 +63,9 @@ struct FManipulatorSettingsMainDrawWireDiamond
 	GENERATED_USTRUCT_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FLinearColor Color = FLinearColor(1.0f, 1.0f, 1.0f, 1);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float DrawThickness = 2.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -75,6 +81,9 @@ USTRUCT(BlueprintType)
 struct FManipulatorSettingsMainDrawPlane
 {
 	GENERATED_USTRUCT_BODY()
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FLinearColor Color = FLinearColor(1.0f, 1.0f, 1.0f, 1);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	UMaterialInterface* Material;
@@ -97,13 +106,10 @@ USTRUCT(BlueprintType)
 struct FManipulatorSettingsMainDrawCircle
 {
 	GENERATED_USTRUCT_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FVector XVector = FVector(1, 0, 0);
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FVector YVector = FVector(0, 1, 0);
 	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FLinearColor Color = FLinearColor(1.0f, 1.0f, 1.0f, 1);
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FRotator Rotation;
 
@@ -241,6 +247,10 @@ struct FManipulatorSettingsMainDraw
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FLinearColor SelectedColor = FLinearColor(0.5f, 0.8f, 1, 1);
 
+	/** Color When Selected */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float OverallSize = 1.0f;
+
 	/** In order from top to bottom if you want to have easy control of your offsets*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TArray<FTransform> Offsets;
@@ -291,70 +301,71 @@ struct FManipulatorSettingsMain
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FManipulatorSettingsMainConstraints Constraints;
 
-	/** Property name that you created in your blueprint to link to and edit automatically If the name matches and is the correct type then it will automatically connect to it without any additional support needed from your blueprint.*/
+	/** DEPRECATED */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FString PropertyNameToEdit = "None";
 
-	/** Make sure the property type matches the property name you are trying to modify */
+	/** DEPRECATED */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	EManipulatorPropertyType PropertyType = EManipulatorPropertyType::MT_TRANSFORM;
 
-	/** For Arrays you can specifically tell which index to point to, this is ignored if your property is not an array. This would typically be used only if you were auto creating manipulators and attaching them to an array */
+	/** DEPRECATED */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int PropertyIndex = 0;
 
-	/** These are the different allowed draw types for manipulators, Each one has their own individual types of settings */
+	/** DEPRECATED */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, DisplayName = "PropertyDrawType")
 	EManipulatorPropertyDrawType ManipulatorDrawType = EManipulatorPropertyDrawType::MDT_BOXWIRE;
 
-	/** Sets whether a manipulator will draw like any other object or through every object*/
+	/** DEPRECATED */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TEnumAsByte<ESceneDepthPriorityGroup> DepthPriorityGroup = ESceneDepthPriorityGroup::SDPG_Foreground;
 
-	/** Default Color */
+	/** DEPRECATED */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FLinearColor Color = FLinearColor(0.15f, 0.5f, 0.7f, 1);
 
-	/** Color When Selected */
+	/** DEPRECATED */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FLinearColor SelectedColor = FLinearColor(0.5f, 0.8f, 1, 1);
 
-	/** Zoom Offset allows the manipulator to keep its size relative to camera distance. */
+	/** DEPRECATED */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool DrawUsingZoomOffset = false;
 
+	/** DEPRECATED */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool IgnorePropertyValueForVisualOffset = false;
 
-	/** Settings specifically for Enum Properties */
+	/** DEPRECATED */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FManipulatorSettingsMainPropertyTypeEnum PropertyEnumSettings;
 
-	/** Allows you to offset the visual information of the manipulator, very useful for things where you want to keep the data relative, but then move the manipulator away from a visual element it may be blocking. */
+	/** DEPRECATED */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, DisplayName = "VisualOffset")
 	FTransform ManipulatorVisualOffset;
 
-	/** Specific settings for Wire Box Draw Type */
+	/** DEPRECATED */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, DisplayName = "SettingsDrawWireBox")
 	FManipulatorSettingsMainDrawWireBox WireBoxSettings;
 
-	/** Specific Settings for Wire Diamond Draw Type */
+	/** DEPRECATED */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, DisplayName = "SettingsDrawDiamond")
 	FManipulatorSettingsMainDrawWireDiamond WireDiamondSettings;
 
-	/** Specific Settings for Draw Plane */
+	/** DEPRECATED */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, DisplayName = "SettingsDrawPlane")
 	FManipulatorSettingsMainDrawPlane PlaneSettings;
 
-	/** Specific Settings for Draw Circle */
+	/** DEPRECATED */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, DisplayName = "SettingsDrawCircle")
 	FManipulatorSettingsMainDrawCircle CircleSettings;
 
-	/** Specific Settings for Draw Plane */
+	/** DEPRECATED */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FManipulatorSettingsMainAdvanced AdvancedSettings;
 
-	/** Constrains Manipulator Vectors and Transforms based off of a min max value on location and scale */
+	/** DEPRECATED */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FManipulatorSettingsMainConstraints ConstraintSettings;
 };
@@ -386,6 +397,24 @@ public:
 	// Easy Way to set the colors without navigating through the struct
 	UFUNCTION(BlueprintCallable)
 	void TransferOldSettingsToNewFormat();
+
+	UFUNCTION(BlueprintCallable)
+	FTransform CombineOffsetTransforms(TArray<FTransform> Offsets);
+
+	// Easy Way to set the colors without navigating through the struct
+	UFUNCTION(BlueprintCallable)
+	TArray<FManipulatorSettingsMainDrawWireBox> GetAllShapesOfTypeWireBox();
+
+
+	UFUNCTION(BlueprintCallable)
+	TArray<FManipulatorSettingsMainDrawWireDiamond> GetAllShapesOfTypeWireDiamond();
+
+	UFUNCTION(BlueprintCallable)
+	TArray<FManipulatorSettingsMainDrawCircle> GetAllShapesOfTypeCircle();
+
+	UFUNCTION(BlueprintCallable)
+	TArray<FManipulatorSettingsMainDrawPlane> GetAllShapesOfTypePlane();
+
 
 protected:
 	// Called when the game starts

@@ -1,6 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "ManipulatorComponent.h"
+#include "..\Public\ManipulatorComponent.h"
 
 // Sets default values for this component's properties
 UManipulatorComponent::UManipulatorComponent()
@@ -105,6 +106,49 @@ void UManipulatorComponent::TransferOldSettingsToNewFormat()
 
 	// Constraints
 	Settings.Constraints = Settings.ConstraintSettings;
+}
+
+FTransform UManipulatorComponent::CombineOffsetTransforms(TArray<FTransform> Offsets)
+{
+	// Combines all transforms of the input transforms.
+	FTransform FinalOffset = FTransform();
+	for (FTransform Offset : Offsets)
+	{
+		FinalOffset = FinalOffset * Offset;
+	}
+	return FinalOffset;
+}
+
+TArray<FManipulatorSettingsMainDrawWireBox> UManipulatorComponent::GetAllShapesOfTypeWireBox()
+{
+	TArray<FManipulatorSettingsMainDrawWireBox> WireBoxes = Settings.Draw.Shapes.WireBoxes;
+	// If all the shapes are empty, then we are going to draw a wire box.
+	if (Settings.Draw.Shapes.WireBoxes.Num() == 0 
+		&& Settings.Draw.Shapes.Planes.Num() == 0 
+		&& Settings.Draw.Shapes.WireCircles.Num() == 0 
+		&& Settings.Draw.Shapes.WireDiamonds.Num() == 0)
+	{
+		FManipulatorSettingsMainDrawWireBox NewWireBox = FManipulatorSettingsMainDrawWireBox();
+		NewWireBox.Color = FLinearColor(1, 1, 1, 1);
+		WireBoxes.Add(NewWireBox);
+		return WireBoxes;
+	}
+	return WireBoxes;
+}
+
+TArray<FManipulatorSettingsMainDrawWireDiamond> UManipulatorComponent::GetAllShapesOfTypeWireDiamond()
+{
+	return Settings.Draw.Shapes.WireDiamonds;
+}
+
+TArray<FManipulatorSettingsMainDrawCircle> UManipulatorComponent::GetAllShapesOfTypeCircle()
+{
+	return Settings.Draw.Shapes.WireCircles;
+}
+
+TArray<FManipulatorSettingsMainDrawPlane> UManipulatorComponent::GetAllShapesOfTypePlane()
+{
+	return Settings.Draw.Shapes.Planes;
 }
 
 // Called when the game starts

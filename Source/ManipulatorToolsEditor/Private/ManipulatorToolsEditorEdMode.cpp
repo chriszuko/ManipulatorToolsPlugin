@@ -19,6 +19,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "LevelEditorViewport.h"
 #include "ManipulatorToolsEditor.h"
+#include "..\Public\ManipulatorToolsEditorEdMode.h"
 
 const FEditorModeID FManipulatorToolsEditorEdMode::EM_ManipulatorToolsEditorEdModeId = TEXT("EM_ManipulatorToolsEditorEdMode");
 
@@ -224,75 +225,110 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 				// Visibility also controls whether or not it will draw.
 				if (ManipulatorComponent != nullptr && ManipulatorComponent->IsVisible())
 				{
-					// Set the hit proxy in the primitive draw interface. This allows us to change the widget location in HandleClick() when clicking a proxy. 
-					// This hit proxy will automatically attach to the next thing we tell to draw. 
-					PDI->SetHitProxy(new HManipulatorProxy(ManipulatorComponent));
 					
 					// Set Color Based off of selection, bools handle their selection a bit different. 
 					FLinearColor DrawColor = ManipulatorComponent->Settings.Draw.BaseColor;
 					if ((ManipulatorComponent->GetName() == EditedComponentName && ManipulatorComponent->Settings.Property.NameToEdit == EditedPropertyName && ManipulatorComponent->GetOwner()->GetName() == EditedActorName) || GetBoolPropertyValue(ManipulatorComponent))
 					{
-						DrawColor = ManipulatorComponent->Settings.Draw.SelectedColor;
+						DrawColor = ManipulatorComponent->Settings.Draw.SelectedColor /* * SelectedColorMuliplier*/;
 					}
 
+					// Declaration of variables before drawing anything
 					FTransform WidgetTransform = GetManipulatorTransformWithOffsets(ManipulatorComponent);
-					FMatrix WidgetMatrix = WidgetTransform.ToMatrixWithScale();
-					float WidgetThickness = 1;
-					float WidgetSizeMultiplier = 1;
-					FBox BoxSize;
 
-					// offset based on zoom if in settings
+					ESceneDepthPriorityGroup WidgetDepthPriority = ManipulatorComponent->Settings.Draw.Extras.DepthPriorityGroup;
+					float WidgetThickness = 1;
+					FTransform WidgetOverallSize = FTransform();
+					WidgetOverallSize.SetScale3D(FVector(ManipulatorComponent->Settings.Draw.OverallSize, ManipulatorComponent->Settings.Draw.OverallSize, ManipulatorComponent->Settings.Draw.OverallSize));
+
+					//Used for the offset based on zoom
+					float WidgetSizeMultiplier = 1;
 					if (ManipulatorComponent->Settings.Draw.Extras.UseZoomOffset)
 					{
 						const float ZoomFactor = FMath::Min<float>(View->ViewMatrices.GetProjectionMatrix().M[0][0], View->ViewMatrices.GetProjectionMatrix().M[1][1]);
 						WidgetSizeMultiplier = View->Project(WidgetTransform.GetTranslation()).W * 0.0065f / ZoomFactor;
 					}
 
-					ESceneDepthPriorityGroup WidgetDepthPriority = ManipulatorComponent->Settings.Draw.Extras.DepthPriorityGroup;
+					// =========================  WIRE BOX  =========================
+					for (FManipulatorSettingsMainDrawWireBox WireBox : ManipulatorComponent->GetAllShapesOfTypeWireBox())
+					{
+						
+						// Create Hit Proxy
+						PDI->SetHitProxy(new HManipulatorProxy(ManipulatorComponent));
+						FTransform WireBoxTransform = WidgetTransform;
+						WireBoxTransform = ManipulatorComponent->CombineOffsetTransforms(WireBox.Offsets) * WidgetOverallSize * WireBoxTransform;
+						FMatrix WidgetMatrix = WireBoxTransform.ToMatrixWithScale();
 
-					// draw Specified Type
-					switch (ManipulatorComponent->Settings.ManipulatorDrawType)
-					{
-					case EManipulatorPropertyDrawType::MDT_BOXWIRE:
-					{
-						BoxSize = ManipulatorComponent->Settings.WireBoxSettings.BoxSize;
-						BoxSize.Min = BoxSize.Min * WidgetSizeMultiplier * ManipulatorComponent->Settings.WireBoxSettings.SizeMultiplier;
-						BoxSize.Max = BoxSize.Max * WidgetSizeMultiplier * ManipulatorComponent->Settings.WireBoxSettings.SizeMultiplier;
+						// Set Box Size
+						FBox BoxSize = WireBox.BoxSize;
+						BoxSize.Min = BoxSize.Min * WireBox.SizeMultiplier;
+						BoxSize.Max = BoxSize.Max * WireBox.SizeMultiplier;
 						WidgetThickness = ManipulatorComponent->Settings.WireBoxSettings.DrawThickness;
-						DrawWireBox(PDI, WidgetMatrix, BoxSize, DrawColor, WidgetDepthPriority, WidgetThickness);
-						break;
+						FLinearColor DrawBoxColor = DrawColor * WireBox.Color;
+
+						// Draw the box
+						
+						DrawWireBox(PDI, WidgetMatrix, BoxSize, DrawBoxColor, WidgetDepthPriority, WidgetThickness);
 					}
-					case EManipulatorPropertyDrawType::MDT_DIAMONDWIRE:
+
+					// =========================  WIRE DIAMOND  =========================
+					for (FManipulatorSettingsMainDrawWireDiamond WireDiamond : ManipulatorComponent->GetAllShapesOfTypeWireDiamond())
 					{
-						float DiamondSize = ManipulatorComponent->Settings.WireDiamondSettings.Size * WidgetSizeMultiplier;
-						WidgetThickness = ManipulatorComponent->Settings.WireDiamondSettings.DrawThickness;
-						DrawWireDiamond(PDI, WidgetMatrix, DiamondSize, DrawColor, WidgetDepthPriority, WidgetThickness);
-						break;
+						// Create Hit Proxy
+						PDI->SetHitProxy(new HManipulatorProxy(ManipulatorComponent));
+						FTransform WireDiamondTransform = WidgetTransform;
+						WireDiamondTransform = ManipulatorComponent->CombineOffsetTransforms(WireDiamond.Offsets) * WidgetOverallSize * WireDiamondTransform;
+						FMatrix WidgetMatrix = WireDiamondTransform.ToMatrixWithScale();
+
+						float DiamondSize = WireDiamond.Size * WidgetSizeMultiplier;
+						WidgetThickness = WireDiamond.DrawThickness;
+						FLinearColor DrawDiamondColor = DrawColor * WireDiamond.Color;
+
+
+						DrawWireDiamond(PDI, WidgetMatrix, DiamondSize, DrawDiamondColor, WidgetDepthPriority, WidgetThickness);
+
 					}
-					case EManipulatorPropertyDrawType::MDT_PLANE:
+
+					// =========================  PLANE  =========================
+					for (FManipulatorSettingsMainDrawPlane Plane : ManipulatorComponent->GetAllShapesOfTypePlane())
 					{
-						if (ManipulatorComponent->Settings.PlaneSettings.Material != nullptr)
+						if (Plane.Material != nullptr)
 						{
-							float PlaneSize = ManipulatorComponent->Settings.PlaneSettings.Size;
-							float UVMin = ManipulatorComponent->Settings.PlaneSettings.UVMin;
-							float UVMax = ManipulatorComponent->Settings.PlaneSettings.UVMax;
-							UMaterialInterface* Material = ManipulatorComponent->Settings.PlaneSettings.Material;
+							// Create Hit Proxy
+							PDI->SetHitProxy(new HManipulatorProxy(ManipulatorComponent));
+							FTransform PlaneTransform = WidgetTransform;
+							PlaneTransform = ManipulatorComponent->CombineOffsetTransforms(Plane.Offsets) * WidgetOverallSize * PlaneTransform;
+							FMatrix WidgetMatrix = PlaneTransform.ToMatrixWithScale();
+
+							float PlaneSize = Plane.Size;
+							float UVMin = Plane.UVMin;
+							float UVMax = Plane.UVMax;
+							UMaterialInterface* Material = Plane.Material;
 							UMaterialInstanceDynamic* MaterialInstanceDynamic = UMaterialInstanceDynamic::Create(Material, GetTransientPackage());
-							MaterialInstanceDynamic->SetVectorParameterValue(FName("DrawColor"), DrawColor);
-							DrawPlane10x10(PDI, WidgetMatrix, PlaneSize, FVector2D(UVMin, UVMin), FVector2D(UVMax, UVMax), MaterialInstanceDynamic->GetRenderProxy(), ManipulatorComponent->Settings.DepthPriorityGroup);
+
+							FLinearColor DrawPlaneColor = DrawColor * Plane.Color;
+
+							MaterialInstanceDynamic->SetVectorParameterValue(FName("DrawColor"), DrawPlaneColor);
+							DrawPlane10x10(PDI, WidgetMatrix, PlaneSize, FVector2D(UVMin, UVMin), FVector2D(UVMax, UVMax), MaterialInstanceDynamic->GetRenderProxy(), WidgetDepthPriority);
 						}
-						break;
 					}
-					case EManipulatorPropertyDrawType::MDT_CIRCLE:
+
+					// =========================  CIRCLE  =========================
+					for (FManipulatorSettingsMainDrawCircle Circle : ManipulatorComponent->GetAllShapesOfTypeCircle())
 					{
-						FVector X = WidgetTransform.GetRotation().RotateVector(ManipulatorComponent->Settings.CircleSettings.XVector * WidgetTransform.GetScale3D());
-						FVector Y = WidgetTransform.GetRotation().RotateVector(ManipulatorComponent->Settings.CircleSettings.YVector * WidgetTransform.GetScale3D());
-						float Radius = ManipulatorComponent->Settings.CircleSettings.Radius;
-						float NumSides = ManipulatorComponent->Settings.CircleSettings.NumSides;
-						WidgetThickness = ManipulatorComponent->Settings.CircleSettings.DrawThickness;
-						DrawCircle(PDI, WidgetTransform.GetLocation(), X, Y, DrawColor, Radius, NumSides, WidgetDepthPriority, WidgetThickness, 0, false);
-						break;
-					}
+						// Create Hit Proxy
+						PDI->SetHitProxy(new HManipulatorProxy(ManipulatorComponent));
+						FTransform CircleTransform = WidgetTransform;
+						CircleTransform = ManipulatorComponent->CombineOffsetTransforms(Circle.Offsets) * WidgetOverallSize * CircleTransform;
+
+						FVector X = CircleTransform.GetRotation().RotateVector(Circle.Rotation.RotateVector(FVector(1, 0, 0) * CircleTransform.GetScale3D()));
+						FVector Y = CircleTransform.GetRotation().RotateVector(Circle.Rotation.RotateVector(FVector(0, 1, 0) * CircleTransform.GetScale3D()));
+						float Radius = Circle.Radius;
+						float NumSides = Circle.NumSides;
+						WidgetThickness = Circle.DrawThickness;
+						FLinearColor DrawCircleColor = DrawColor * Circle.Color;
+
+						DrawCircle(PDI, CircleTransform.GetLocation(), X, Y, DrawCircleColor, Radius, NumSides, WidgetDepthPriority, WidgetThickness, 0, false);
 					}
 				}
 			}
@@ -399,7 +435,7 @@ bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewport
 				// Use the visual offset to correctly translate information on super visually offset widgets.
 				if (ManipulatorComponent->Settings.Draw.Extras.UsePropertyValueAsInitialOffset)
 				{
-					WidgetTransform.SetRotation(WidgetTransform.GetRotation() * ManipulatorComponent->Settings.ManipulatorVisualOffset.GetRotation());
+					WidgetTransform.SetRotation(WidgetTransform.GetRotation() * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets).GetRotation());
 				}
 
 				// Flip Transforms if told to flip X
@@ -674,7 +710,7 @@ FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UMa
 	RelativeTransform.NormalizeRotation();
 
 	// Compose Relative Transform, Enum Offset, Visual Offset and Actor Transform together to get the final Widget Transform.
-	WidgetTransform = RelativeTransform * FTransform(EnumPropertyOffset) * ManipulatorComponent->Settings.ManipulatorVisualOffset * ManipulatorComponent->GetOwner()->GetActorTransform();
+	WidgetTransform = RelativeTransform * FTransform(EnumPropertyOffset) * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets) * ManipulatorComponent->GetOwner()->GetActorTransform();
 	WidgetTransform.NormalizeRotation();
 	return WidgetTransform;
 }
@@ -792,7 +828,7 @@ void FManipulatorToolsEditorEdMode::HandleSequencerTrackSelection(const EManipul
 					if (track != nullptr)
 					{
 						WeakSequencer.Pin()->EmptySelection();
-						// TODO Nolan: This can likely be updated to use the below to clean this up. Just need to get the propertyPath.
+						// TODO: This can likely be updated to use the below to clean this up. Just need to get the propertyPath.
 						//TArray<FString> propertyNames;
 						//propertyNames.Add(propertyName.ToString());
 						//WeakSequencer.Pin()->SelectByPropertyPaths(propertyNames);
@@ -805,12 +841,43 @@ void FManipulatorToolsEditorEdMode::HandleSequencerTrackSelection(const EManipul
 
 }
 
+void FManipulatorToolsEditorEdMode::HandleSelectedColorMultiplier(float DeltaTime)
+{
+	float AddedTime = 0;
+	float Speed = DeltaTime * 0.8f;
+	float Min = 0.95f;
+	float Max = 1.2f;
+	// Simple linear animation for making the manipulator flash when selected
+	if (SelectedColorMultiplierDirection)
+	{
+		AddedTime = AddedTime + Speed;
+	}
+	else
+	{
+		AddedTime = AddedTime - Speed;
+	}
+	SelectedColorMuliplier = SelectedColorMuliplier + AddedTime;
+
+	FMath::Clamp(SelectedColorMuliplier, Min, Max);
+
+	if (SelectedColorMuliplier >= Max || SelectedColorMuliplier <= Min)
+	{
+		SelectedColorMultiplierDirection = !SelectedColorMultiplierDirection;
+	}
+}
+
+void FManipulatorToolsEditorEdMode::Tick(FEditorViewportClient * ViewportClient, float DeltaTime)
+{
+	FEdMode::Tick(ViewportClient, DeltaTime);
+	HandleSelectedColorMultiplier(DeltaTime);
+}
+
 void FManipulatorToolsEditorEdMode::SetSequencer(TWeakPtr<ISequencer> InSequencer)
 {
 	WeakSequencer = InSequencer;
 	if (UsesToolkits())
 	{
-		// TODO Nolan: Reference ControlRigEditMode for this. Getting this setup may be a more correct way of doing auto key.
+		// TODO: Reference ControlRigEditMode for this. Getting this setup may be a more correct way of doing auto key.
 		//StaticCastSharedPtr<SControlRigEditModeTools>(Toolkit->GetInlineContent())->SetSequencer(InSequencer);
 	}
 }

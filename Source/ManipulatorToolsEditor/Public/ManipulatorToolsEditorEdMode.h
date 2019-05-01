@@ -46,6 +46,13 @@ public:
 	FString EditedManipulatorPropertyName = "";
 	FString EditedComponentName = "";
 	FString EditedActorName = "";
+	void HandleSelectedColorMultiplier(float DeltaTime);
+
+	float SelectedColorMuliplier = 1;
+	bool SelectedColorMultiplierDirection = false;
+	virtual void Tick(FEditorViewportClient* ViewportClient, float DeltaTime) override;
+
+
 private:
 
 	/** Weak pointer to the last sequencer that was opened */
