@@ -13,7 +13,7 @@ UManipulatorComponent::UManipulatorComponent()
 
 FTransform UManipulatorComponent::ConstrainTransform(FTransform Transform)
 {
-	if (Settings.PropertyType == EManipulatorPropertyType::MT_TRANSFORM || Settings.PropertyType == EManipulatorPropertyType::MT_VECTOR)
+	if (Settings.Property.Type == EManipulatorPropertyType::MT_TRANSFORM || Settings.Property.Type == EManipulatorPropertyType::MT_VECTOR)
 	{
 		if (Settings.Constraints.UseLocationConstraint)
 		{
@@ -65,65 +65,6 @@ FTransform UManipulatorComponent::GetVisualOffset(int32 Index, bool OutputCombin
 void UManipulatorComponent::ClearVisualOffsets()
 {
 	Settings.Draw.Offsets.Empty();
-}
-
-void UManipulatorComponent::TransferOldSettingsToNewFormat()
-{
-	// Colors
-	Settings.Draw.BaseColor = Settings.Color;
-	Settings.Draw.SelectedColor = Settings.SelectedColor;
-
-	// Property Settings
-	Settings.Property.NameToEdit = Settings.PropertyNameToEdit;
-	Settings.Property.Index = Settings.PropertyIndex;
-	Settings.Property.Type = Settings.PropertyType;
-	Settings.Property.EnumSettings = Settings.PropertyEnumSettings;
-
-	// Populate Extras
-	Settings.Draw.Extras.DepthPriorityGroup = Settings.DepthPriorityGroup;
-	Settings.Draw.Extras.FlipVisualXLocation = Settings.AdvancedSettings.FlipVisualXLocation;
-	Settings.Draw.Extras.FlipVisualXScale = Settings.AdvancedSettings.FlipVisualXScale;
-	Settings.Draw.Extras.FlipVisualYRotation = Settings.AdvancedSettings.FlipVisualYRotation;
-	Settings.Draw.Extras.UseZoomOffset = Settings.DrawUsingZoomOffset;
-	Settings.Draw.Extras.UsePropertyValueAsInitialOffset = !Settings.IgnorePropertyValueForVisualOffset;
-
-	// Visual Offsets
-	Settings.Draw.Offsets.Empty();
-	Settings.Draw.Offsets.Add(Settings.ManipulatorVisualOffset);
-
-	// Empty Shapes to add new one.
-	Settings.Draw.Shapes.Planes.Empty();
-	Settings.Draw.Shapes.WireBoxes.Empty();
-	Settings.Draw.Shapes.WireCircles.Empty();
-	Settings.Draw.Shapes.WireDiamonds.Empty();
-
-	// Add Specific Shape to the shapes
-	switch (Settings.ManipulatorDrawType)
-	{
-	case EManipulatorPropertyDrawType::MDT_BOXWIRE:
-	{
-		Settings.Draw.Shapes.WireBoxes.Add(Settings.WireBoxSettings);
-		break;
-	}
-	case EManipulatorPropertyDrawType::MDT_DIAMONDWIRE:
-	{
-		Settings.Draw.Shapes.WireDiamonds.Add(Settings.WireDiamondSettings);
-		break;
-	}
-	case EManipulatorPropertyDrawType::MDT_PLANE:
-	{
-		Settings.Draw.Shapes.Planes.Add(Settings.PlaneSettings);
-		break;
-	}
-	case EManipulatorPropertyDrawType::MDT_CIRCLE:
-	{
-		Settings.Draw.Shapes.WireCircles.Add(Settings.CircleSettings);
-		break;
-	}
-	}
-
-	// Constraints
-	Settings.Constraints = Settings.ConstraintSettings;
 }
 
 FTransform UManipulatorComponent::CombineOffsetTransforms(TArray<FTransform> Offsets)
@@ -260,12 +201,12 @@ bool UManipulatorComponent::CanEditChange(const UProperty* InProperty) const
 
 	if (InProperty->GetFName() == "EnumSettings")
 	{
-		return Settings.PropertyType == EManipulatorPropertyType::MT_ENUM;
+		return Settings.Property.Type == EManipulatorPropertyType::MT_ENUM;
 	}
 
 	if (InProperty->GetFName() == "Constraints")
 	{
-		if (Settings.PropertyType == EManipulatorPropertyType::MT_TRANSFORM || Settings.PropertyType == EManipulatorPropertyType::MT_VECTOR)
+		if (Settings.Property.Type == EManipulatorPropertyType::MT_TRANSFORM || Settings.Property.Type == EManipulatorPropertyType::MT_VECTOR)
 		{
 			return true;
 		}

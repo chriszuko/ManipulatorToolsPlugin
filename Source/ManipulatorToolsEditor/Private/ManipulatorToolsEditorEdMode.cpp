@@ -262,7 +262,7 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 						FBox BoxSize = WireBox.BoxSize;
 						BoxSize.Min = BoxSize.Min * WireBox.SizeMultiplier;
 						BoxSize.Max = BoxSize.Max * WireBox.SizeMultiplier;
-						WidgetThickness = ManipulatorComponent->Settings.WireBoxSettings.DrawThickness;
+						WidgetThickness = WireBox.DrawThickness;
 						FLinearColor DrawBoxColor = DrawColor * WireBox.Color;
 
 						// Draw the box
@@ -308,6 +308,7 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 							FLinearColor DrawPlaneColor = DrawColor * Plane.Color;
 
 							MaterialInstanceDynamic->SetVectorParameterValue(FName("DrawColor"), DrawPlaneColor);
+							//DrawPlane10x10(PDI, WidgetMatrix, PlaneSize, FVector2D(UVMin, UVMin), FVector2D(UVMax, UVMax), MaterialInstanceDynamic->GetRenderProxy(false), WidgetDepthPriority);
 							DrawPlane10x10(PDI, WidgetMatrix, PlaneSize, FVector2D(UVMin, UVMin), FVector2D(UVMax, UVMax), MaterialInstanceDynamic->GetRenderProxy(), WidgetDepthPriority);
 						}
 					}
@@ -465,7 +466,7 @@ bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewport
 				UProperty* SetProperty = NULL;
 
 				// Set the property values based off of their type on the component and the name on the component.
-				switch (ManipulatorComponent->Settings.PropertyType)
+				switch (ManipulatorComponent->Settings.Property.Type)
 				{
 				case EManipulatorPropertyType::MT_TRANSFORM:
 					// Get Property Here
@@ -589,7 +590,7 @@ bool FManipulatorToolsEditorEdMode::GetBoolPropertyValue(UManipulatorComponent* 
 void FManipulatorToolsEditorEdMode::ToggleBoolPropertyValue(UManipulatorComponent* ManipulatorComponent)
 {
 	// Toggles a bool on and off when clicked. 
-	if (ManipulatorComponent->Settings.PropertyType == EManipulatorPropertyType::MT_BOOL)
+	if (ManipulatorComponent->Settings.Property.Type == EManipulatorPropertyType::MT_BOOL)
 	{
 		bool CurrentBool = false;
 		FTransform WidgetTransform;

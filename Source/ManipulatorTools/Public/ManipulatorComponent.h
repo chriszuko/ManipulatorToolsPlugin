@@ -310,74 +310,6 @@ struct FManipulatorSettingsMain
 	/** Constrains Manipulator Vectors and Transforms based off of a min max value on location and scale */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FManipulatorSettingsMainConstraints Constraints;
-
-	/** DEPRECATED */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FString PropertyNameToEdit = "None";
-
-	/** DEPRECATED */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	EManipulatorPropertyType PropertyType = EManipulatorPropertyType::MT_TRANSFORM;
-
-	/** DEPRECATED */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	int PropertyIndex = 0;
-
-	/** DEPRECATED */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, DisplayName = "PropertyDrawType")
-	EManipulatorPropertyDrawType ManipulatorDrawType = EManipulatorPropertyDrawType::MDT_BOXWIRE;
-
-	/** DEPRECATED */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TEnumAsByte<ESceneDepthPriorityGroup> DepthPriorityGroup = ESceneDepthPriorityGroup::SDPG_Foreground;
-
-	/** DEPRECATED */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FLinearColor Color = FLinearColor(0.15f, 0.5f, 0.7f, 1);
-
-	/** DEPRECATED */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FLinearColor SelectedColor = FLinearColor(0.5f, 0.8f, 1, 1);
-
-	/** DEPRECATED */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool DrawUsingZoomOffset = false;
-
-	/** DEPRECATED */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool IgnorePropertyValueForVisualOffset = false;
-
-	/** DEPRECATED */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FManipulatorSettingsMainPropertyTypeEnum PropertyEnumSettings;
-
-	/** DEPRECATED */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, DisplayName = "VisualOffset")
-	FTransform ManipulatorVisualOffset;
-
-	/** DEPRECATED */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, DisplayName = "SettingsDrawWireBox")
-	FManipulatorSettingsMainDrawWireBox WireBoxSettings;
-
-	/** DEPRECATED */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, DisplayName = "SettingsDrawDiamond")
-	FManipulatorSettingsMainDrawWireDiamond WireDiamondSettings;
-
-	/** DEPRECATED */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, DisplayName = "SettingsDrawPlane")
-	FManipulatorSettingsMainDrawPlane PlaneSettings;
-
-	/** DEPRECATED */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, DisplayName = "SettingsDrawCircle")
-	FManipulatorSettingsMainDrawCircle CircleSettings;
-
-	/** DEPRECATED */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FManipulatorSettingsMainAdvanced AdvancedSettings;
-
-	/** DEPRECATED */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FManipulatorSettingsMainConstraints ConstraintSettings;
 };
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent), hidecategories = ("Rendering" , "Physics" , "ComponentReplication" , "LOD", "AssetUserData", "Collision", "Cooking", "Activation"))
@@ -410,10 +342,6 @@ public:
 
 	UFUNCTION(BlueprintCallable, DisplayName = "Clear Offset Transforms")
 	void ClearVisualOffsets();
-
-	// Easy Way to set the colors without navigating through the struct
-	UFUNCTION(BlueprintCallable)
-	void TransferOldSettingsToNewFormat();
 
 	UFUNCTION(BlueprintCallable)
 	FTransform CombineOffsetTransforms(TArray<FTransform> Offsets);
