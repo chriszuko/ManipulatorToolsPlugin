@@ -19,7 +19,6 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "LevelEditorViewport.h"
 #include "ManipulatorToolsEditor.h"
-#include "..\Public\ManipulatorToolsEditorEdMode.h"
 
 const FEditorModeID FManipulatorToolsEditorEdMode::EM_ManipulatorToolsEditorEdModeId = TEXT("EM_ManipulatorToolsEditorEdMode");
 
@@ -314,15 +313,15 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 					}
 
 					// =========================  CIRCLE  =========================
-					for (FManipulatorSettingsMainDrawCircle Circle : ManipulatorComponent->GetAllShapesOfTypeCircle())
+					for (FManipulatorSettingsMainDrawCircle Circle : ManipulatorComponent->GetAllShapesOfTypeWireCircle())
 					{
 						// Create Hit Proxy
 						PDI->SetHitProxy(new HManipulatorProxy(ManipulatorComponent));
 						FTransform CircleTransform = WidgetTransform;
 						CircleTransform = ManipulatorComponent->CombineOffsetTransforms(Circle.Offsets) * WidgetOverallSize * CircleTransform;
 
-						FVector X = CircleTransform.GetRotation().RotateVector(Circle.Rotation.RotateVector(FVector(1, 0, 0) * CircleTransform.GetScale3D()));
-						FVector Y = CircleTransform.GetRotation().RotateVector(Circle.Rotation.RotateVector(FVector(0, 1, 0) * CircleTransform.GetScale3D()));
+						FVector X = CircleTransform.GetRotation().RotateVector(Circle.Rotation.RotateVector(FVector(1, 0, 0)) * CircleTransform.GetScale3D());
+						FVector Y = CircleTransform.GetRotation().RotateVector(Circle.Rotation.RotateVector(FVector(0, 1, 0)) * CircleTransform.GetScale3D());
 						float Radius = Circle.Radius;
 						float NumSides = Circle.NumSides;
 						WidgetThickness = Circle.DrawThickness;

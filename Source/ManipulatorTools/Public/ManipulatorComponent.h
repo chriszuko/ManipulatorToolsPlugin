@@ -7,6 +7,16 @@
 #include "Engine/StaticMesh.h"
 #include "ManipulatorComponent.generated.h"
 
+template <typename T>
+static void SetArrayElement(T Item, TArray<T>& ItemArray, int32 Index)
+{
+	if (!ItemArray.IsValidIndex(Index))
+	{
+		ItemArray.SetNum(Index+1);
+	}
+	ItemArray[Index] = Item;
+}
+
 UENUM(BlueprintType)
 enum class EManipulatorPropertyType : uint8
 {
@@ -391,8 +401,15 @@ public:
 	void SetColors(FLinearColor Color, FLinearColor SelectedColor);
 
 	// Update the visual offset without navigating through the struct
-	UFUNCTION(BlueprintCallable, DisplayName = "SetVisualOffset")
-	void SetManipulatorVisualOffset(FTransform ManipulatorVisualOffset);
+	UFUNCTION(BlueprintCallable, DisplayName = "Set Offset Transform")
+	void SetManipulatorVisualOffset(FTransform ManipulatorVisualOffset, int32 Index = 0);
+
+	// Update the visual offset without navigating through the struct
+	UFUNCTION(BlueprintCallable, BlueprintPure, DisplayName = "Get Offset Transform")
+	FTransform GetVisualOffset(int32 Index = 0, bool OutputCombinedOffsets = false);
+
+	UFUNCTION(BlueprintCallable, DisplayName = "Clear Offset Transforms")
+	void ClearVisualOffsets();
 
 	// Easy Way to set the colors without navigating through the struct
 	UFUNCTION(BlueprintCallable)
@@ -401,19 +418,57 @@ public:
 	UFUNCTION(BlueprintCallable)
 	FTransform CombineOffsetTransforms(TArray<FTransform> Offsets);
 
-	// Easy Way to set the colors without navigating through the struct
-	UFUNCTION(BlueprintCallable)
+
+
+
+
+	// ================= WIRE BOX ===================
+
+	// Gets all shapes of wire box.
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "ManipulatorTools|Shapes")
 	TArray<FManipulatorSettingsMainDrawWireBox> GetAllShapesOfTypeWireBox();
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "ManipulatorTools|Shapes")
+	FManipulatorSettingsMainDrawWireBox GetShapeOfTypeWireBox(bool& Success, int32 Index);
 
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "ManipulatorTools|Shapes")
+	void SetShapeOfTypeWireBox(int32 Index, FManipulatorSettingsMainDrawWireBox WireBox);
+
+
+	// ================= WIRE DIAMOND ===================
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "ManipulatorTools|Shapes")
 	TArray<FManipulatorSettingsMainDrawWireDiamond> GetAllShapesOfTypeWireDiamond();
 
-	UFUNCTION(BlueprintCallable)
-	TArray<FManipulatorSettingsMainDrawCircle> GetAllShapesOfTypeCircle();
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "ManipulatorTools|Shapes")
+	FManipulatorSettingsMainDrawWireDiamond GetShapeOfTypeWireDiamond(UPARAM(ref) bool& Success, int32 Index);
 
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "ManipulatorTools|Shapes")
+	void SetShapeOfTypeWireDiamond(int32 Index, FManipulatorSettingsMainDrawWireDiamond WireDiamond);
+
+
+	// ================= CIRCLES ===================
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "ManipulatorTools|Shapes")
+	TArray<FManipulatorSettingsMainDrawCircle> GetAllShapesOfTypeWireCircle();
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "ManipulatorTools|Shapes")
+	FManipulatorSettingsMainDrawCircle GetShapeOfTypeWireCircle(UPARAM(ref) bool& Success, int32 Index);
+
+	UFUNCTION(BlueprintCallable, Category = "ManipulatorTools|Shapes")
+	void SetShapeOfTypeWireCircle(int32 Index, FManipulatorSettingsMainDrawCircle Circle);
+
+
+	// ================= PLANES ===================
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "ManipulatorTools|Shapes")
 	TArray<FManipulatorSettingsMainDrawPlane> GetAllShapesOfTypePlane();
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "ManipulatorTools|Shapes")
+	FManipulatorSettingsMainDrawPlane GetShapeOfTypePlane(UPARAM(ref) bool& Success, int32 Index);
+
+	UFUNCTION(BlueprintCallable, Category = "ManipulatorTools|Shapes")
+	void SetShapeOfTypePlane(int32 Index, FManipulatorSettingsMainDrawPlane Plane);
 
 
 protected:

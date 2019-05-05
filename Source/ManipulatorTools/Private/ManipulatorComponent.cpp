@@ -1,7 +1,6 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "ManipulatorComponent.h"
-#include "..\Public\ManipulatorComponent.h"
 
 // Sets default values for this component's properties
 UManipulatorComponent::UManipulatorComponent()
@@ -44,9 +43,28 @@ void UManipulatorComponent::SetColors(FLinearColor Color, FLinearColor SelectedC
 	Settings.Draw.SelectedColor = SelectedColor;
 }
 
-void UManipulatorComponent::SetManipulatorVisualOffset(FTransform ManipulatorVisualOffset)
+void UManipulatorComponent::SetManipulatorVisualOffset(FTransform ManipulatorVisualOffset, int32 Index)
 {
-	Settings.ManipulatorVisualOffset = ManipulatorVisualOffset;
+	SetArrayElement(ManipulatorVisualOffset, Settings.Draw.Offsets, Index);
+}
+
+FTransform UManipulatorComponent::GetVisualOffset(int32 Index, bool OutputCombinedOffsets)
+{
+	if (OutputCombinedOffsets == true)
+	{
+		return CombineOffsetTransforms(Settings.Draw.Offsets);
+	}
+	else if(Settings.Draw.Offsets.IsValidIndex(Index))
+	{
+		return Settings.Draw.Offsets[Index];
+	}
+
+	return FTransform();
+}
+
+void UManipulatorComponent::ClearVisualOffsets()
+{
+	Settings.Draw.Offsets.Empty();
 }
 
 void UManipulatorComponent::TransferOldSettingsToNewFormat()
@@ -119,6 +137,7 @@ FTransform UManipulatorComponent::CombineOffsetTransforms(TArray<FTransform> Off
 	return FinalOffset;
 }
 
+// ================= WIRE BOX ===================
 TArray<FManipulatorSettingsMainDrawWireBox> UManipulatorComponent::GetAllShapesOfTypeWireBox()
 {
 	TArray<FManipulatorSettingsMainDrawWireBox> WireBoxes = Settings.Draw.Shapes.WireBoxes;
@@ -136,19 +155,96 @@ TArray<FManipulatorSettingsMainDrawWireBox> UManipulatorComponent::GetAllShapesO
 	return WireBoxes;
 }
 
+FManipulatorSettingsMainDrawWireBox UManipulatorComponent::GetShapeOfTypeWireBox(bool& Success, int32 Index)
+{
+	if(Settings.Draw.Shapes.WireBoxes.IsValidIndex(Index))
+	{
+		Success = true;
+		return Settings.Draw.Shapes.WireBoxes[Index];
+	}
+	else
+	{
+		Success = false;
+		return FManipulatorSettingsMainDrawWireBox();
+	}
+}
+
+void UManipulatorComponent::SetShapeOfTypeWireBox(int32 Index, FManipulatorSettingsMainDrawWireBox WireBox)
+{
+	SetArrayElement(WireBox, Settings.Draw.Shapes.WireBoxes, Index);
+}
+// ================= WIRE DIAMOND ===================
 TArray<FManipulatorSettingsMainDrawWireDiamond> UManipulatorComponent::GetAllShapesOfTypeWireDiamond()
 {
 	return Settings.Draw.Shapes.WireDiamonds;
 }
 
-TArray<FManipulatorSettingsMainDrawCircle> UManipulatorComponent::GetAllShapesOfTypeCircle()
+FManipulatorSettingsMainDrawWireDiamond UManipulatorComponent::GetShapeOfTypeWireDiamond(bool& Success, int32 Index)
+{
+	if (Settings.Draw.Shapes.WireDiamonds.IsValidIndex(Index))
+	{
+		Success = true;
+		return Settings.Draw.Shapes.WireDiamonds[Index];
+	}
+	else
+	{
+		Success = false;
+		return FManipulatorSettingsMainDrawWireDiamond();
+	}
+}
+
+void UManipulatorComponent::SetShapeOfTypeWireDiamond(int32 Index, FManipulatorSettingsMainDrawWireDiamond WireDiamond)
+{
+	SetArrayElement(WireDiamond, Settings.Draw.Shapes.WireDiamonds, Index);
+}
+// ================= CIRCLES ===================
+TArray<FManipulatorSettingsMainDrawCircle> UManipulatorComponent::GetAllShapesOfTypeWireCircle()
 {
 	return Settings.Draw.Shapes.WireCircles;
 }
 
+FManipulatorSettingsMainDrawCircle UManipulatorComponent::GetShapeOfTypeWireCircle(bool& Success, int32 Index)
+{
+	if (Settings.Draw.Shapes.WireCircles.IsValidIndex(Index))
+	{
+		Success = true;
+		return Settings.Draw.Shapes.WireCircles[Index];
+	}
+	else
+	{
+		Success = false;
+		return FManipulatorSettingsMainDrawCircle();
+	}
+}
+
+void UManipulatorComponent::SetShapeOfTypeWireCircle(int32 Index, FManipulatorSettingsMainDrawCircle WireCircle)
+{
+	SetArrayElement(WireCircle, Settings.Draw.Shapes.WireCircles, Index);
+}
+
+// ================= PLANES ===================
 TArray<FManipulatorSettingsMainDrawPlane> UManipulatorComponent::GetAllShapesOfTypePlane()
 {
 	return Settings.Draw.Shapes.Planes;
+}
+
+FManipulatorSettingsMainDrawPlane UManipulatorComponent::GetShapeOfTypePlane(bool& Success, int32 Index)
+{
+	if (Settings.Draw.Shapes.Planes.IsValidIndex(Index))
+	{
+		Success = true;
+		return Settings.Draw.Shapes.Planes[Index];
+	}
+	else
+	{
+		Success = false;
+		return FManipulatorSettingsMainDrawPlane();
+	}
+}
+
+void UManipulatorComponent::SetShapeOfTypePlane(int32 Index, FManipulatorSettingsMainDrawPlane Plane)
+{
+	SetArrayElement(Plane, Settings.Draw.Shapes.Planes, Index);
 }
 
 // Called when the game starts
@@ -182,3 +278,4 @@ bool UManipulatorComponent::CanEditChange(const UProperty* InProperty) const
 	return ParentVal;
 }
 #endif
+

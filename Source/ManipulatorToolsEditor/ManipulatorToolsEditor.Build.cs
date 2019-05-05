@@ -26,6 +26,10 @@ public class ManipulatorToolsEditor : ModuleRules
 			new string[]
 			{
 				"Core",
+                "Projects",
+                "Engine",
+                "Slate",
+                "SlateCore"
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
@@ -35,9 +39,6 @@ public class ManipulatorToolsEditor : ModuleRules
 			new string[]
 			{
 				"CoreUObject",
-				"Engine",
-				"Slate",
-				"SlateCore",
 				"InputCore",
 				"UnrealEd",
 				"LevelEditor",
@@ -45,8 +46,8 @@ public class ManipulatorToolsEditor : ModuleRules
                 //"MovieSceneTools",
                 "MovieSceneTracks",
                 "Sequencer",
-				"ManipulatorTools",
-                "Projects",
+				"ManipulatorTools"
+
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);
