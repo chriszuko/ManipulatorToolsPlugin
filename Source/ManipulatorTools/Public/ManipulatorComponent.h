@@ -7,6 +7,7 @@
 #include "Engine/StaticMesh.h"
 #include "ManipulatorComponent.generated.h"
 
+
 template <typename T>
 static void SetArrayElement(T Item, TArray<T>& ItemArray, int32 Index)
 {
@@ -345,10 +346,6 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	FTransform CombineOffsetTransforms(TArray<FTransform> Offsets);
-
-
-
-
 
 	// ================= WIRE BOX ===================
 

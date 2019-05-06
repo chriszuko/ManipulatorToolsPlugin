@@ -26,7 +26,7 @@ public:
 		const FVector2D Icon24x24(24.0f, 24.0f);
 		const FVector2D Icon32x32(32.0f, 32.0f);
 		const FVector2D Icon40x40(40.0f, 40.0f);
-		SetContentRoot(IPluginManager::Get().FindPlugin("ManipulatorTools")->GetBaseDir() / TEXT("Content/Icons"));
+		SetContentRoot(IPluginManager::Get().FindPlugin("ManipulatorTools")->GetBaseDir() / TEXT("Content/HardCoded/Icons"));
 
 		const FSlateColor DefaultForeground(FLinearColor(0.72f, 0.72f, 0.72f, 1.f));
 

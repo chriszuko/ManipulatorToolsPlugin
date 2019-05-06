@@ -18,6 +18,9 @@
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "LevelEditorViewport.h"
+#include "Interfaces/IPluginManager.h"
+#include "UObject/UObjectIterator.h"
+#include "Materials/Material.h"
 #include "ManipulatorToolsEditor.h"
 
 const FEditorModeID FManipulatorToolsEditorEdMode::EM_ManipulatorToolsEditorEdModeId = TEXT("EM_ManipulatorToolsEditorEdMode");
@@ -291,26 +294,33 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 					// =========================  PLANE  =========================
 					for (FManipulatorSettingsMainDrawPlane Plane : ManipulatorComponent->GetAllShapesOfTypePlane())
 					{
-						if (Plane.Material != nullptr)
+						// Create Hit Proxy
+						PDI->SetHitProxy(new HManipulatorProxy(ManipulatorComponent));
+						FTransform PlaneTransform = WidgetTransform;
+						PlaneTransform = ManipulatorComponent->CombineOffsetTransforms(Plane.Offsets) * WidgetOverallSize * PlaneTransform;
+						FMatrix WidgetMatrix = PlaneTransform.ToMatrixWithScale();
+
+						float PlaneSize = Plane.Size;
+						float UVMin = Plane.UVMin;
+						float UVMax = Plane.UVMax;
+
+						if (Plane.Material == nullptr)
 						{
-							// Create Hit Proxy
-							PDI->SetHitProxy(new HManipulatorProxy(ManipulatorComponent));
-							FTransform PlaneTransform = WidgetTransform;
-							PlaneTransform = ManipulatorComponent->CombineOffsetTransforms(Plane.Offsets) * WidgetOverallSize * PlaneTransform;
-							FMatrix WidgetMatrix = PlaneTransform.ToMatrixWithScale();
-
-							float PlaneSize = Plane.Size;
-							float UVMin = Plane.UVMin;
-							float UVMax = Plane.UVMax;
-							UMaterialInterface* Material = Plane.Material;
-							UMaterialInstanceDynamic* MaterialInstanceDynamic = UMaterialInstanceDynamic::Create(Material, GetTransientPackage());
-
-							FLinearColor DrawPlaneColor = DrawColor * Plane.Color;
-
-							MaterialInstanceDynamic->SetVectorParameterValue(FName("DrawColor"), DrawPlaneColor);
-							//DrawPlane10x10(PDI, WidgetMatrix, PlaneSize, FVector2D(UVMin, UVMin), FVector2D(UVMax, UVMax), MaterialInstanceDynamic->GetRenderProxy(false), WidgetDepthPriority);
-							DrawPlane10x10(PDI, WidgetMatrix, PlaneSize, FVector2D(UVMin, UVMin), FVector2D(UVMax, UVMax), MaterialInstanceDynamic->GetRenderProxy(), WidgetDepthPriority);
+							FString MaterialPath = "/ManipulatorTools/HardCoded/MM_ManipulatorTools_ShapePlane.MM_ManipulatorTools_ShapePlane";
+							Plane.Material = (UMaterial*)StaticLoadObject(UMaterial::StaticClass(), NULL, *MaterialPath, NULL, LOAD_None, NULL);
 						}
+						UMaterialInterface* Material = Plane.Material;
+						UMaterialInstanceDynamic* MaterialInstanceDynamic = UMaterialInstanceDynamic::Create(Material, NULL);
+
+						FLinearColor DrawPlaneColor = DrawColor * Plane.Color;
+
+						MaterialInstanceDynamic->SetVectorParameterValue(FName("DrawColor"), DrawPlaneColor);
+#if ENGINE_MAJOR_VERSION >= 4 && ENGINE_MINOR_VERSION > 21
+						FMaterialRenderProxy* RenderProxy = MaterialInstanceDynamic->GetRenderProxy();
+#else
+						FMaterialRenderProxy* RenderProxy = MaterialInstanceDynamic->GetRenderProxy(false);
+#endif
+						DrawPlane10x10(PDI, WidgetMatrix, PlaneSize, FVector2D(UVMin, UVMin), FVector2D(UVMax, UVMax), RenderProxy, WidgetDepthPriority);
 					}
 
 					// =========================  CIRCLE  =========================
