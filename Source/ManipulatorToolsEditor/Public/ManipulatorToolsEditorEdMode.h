@@ -4,8 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "EdMode.h"
-#include "Sequencer/Public/ISequencer.h"
-#include "Sequencer/Public/ISequencerModule.h"
+#include "ISequencer.h"
+#include "ISequencerModule.h"
 #include "ManipulatorComponent.h"
 
 

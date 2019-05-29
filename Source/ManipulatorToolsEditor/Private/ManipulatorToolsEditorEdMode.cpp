@@ -7,7 +7,7 @@
 #include "Engine/Selection.h"
 #include "EditorModeManager.h"
 #include "EngineUtils.h"
-#include "Sequencer/Public/ISequencer.h"
+#include "ISequencer.h"
 #include "MovieSceneSequence.h"
 #include "MovieSceneTrack.h"
 #include "MovieScene.h"
