@@ -75,6 +75,7 @@ FTransform UManipulatorComponent::CombineOffsetTransforms(TArray<FTransform> Off
 	{
 		FinalOffset = FinalOffset * Offset;
 	}
+
 	return FinalOffset;
 }
 

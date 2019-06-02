@@ -25,33 +25,14 @@
 
 const FEditorModeID FManipulatorToolsEditorEdMode::EM_ManipulatorToolsEditorEdModeId = TEXT("EM_ManipulatorToolsEditorEdMode");
 
-/** Hit proxy used for editable properties */
-struct HManipulatorProxy : public HHitProxy
-{
-	DECLARE_HIT_PROXY();
 
-	/** Component this hit proxy will talk to. */
-	UManipulatorComponent* ManipulatorComponent;
 
-	/** This property is a transform */
-	bool	bPropertyIsTransform;
 
-	// Constructor
-	HManipulatorProxy(UManipulatorComponent* ManipulatorComponent) : HHitProxy(HPP_Foreground) , ManipulatorComponent(ManipulatorComponent)
-	{
-	}
 
-	/** Show cursor as cross when over this handle */
-	virtual EMouseCursor::Type GetMouseCursor() override
-	{
-		return EMouseCursor::Crosshairs;
-	}
-};
 
-IMPLEMENT_HIT_PROXY(HManipulatorProxy, HHitProxy);
 
 // A bunch of functions that EdMode Uses to get properties by name that I don't have access to because 
-// EdMode is dumb and doesn't put it in the header so I followed their example and copied it to my cpp. SUCK IT UNREAL.
+// EdMode is dumb and doesn't put it in the header so I followed their example and copied it.
 namespace
 {
 	/**
@@ -205,6 +186,15 @@ void FManipulatorToolsEditorEdMode::Exit()
 	FEdMode::Exit();
 }
 
+FTransform FManipulatorToolsEditorEdMode::HandleFinalShapeTransforms(FTransform ShapeTransform, FTransform OverallScale, FTransform WidgetTransform, bool RotateScale)
+{
+	if (RotateScale)
+	{
+		WidgetTransform.SetScale3D(ShapeTransform.GetRotation().Inverse().RotateVector(WidgetTransform.GetScale3D()));
+	}
+	return ShapeTransform * OverallScale * WidgetTransform;
+}
+
 void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * Viewport, FPrimitiveDrawInterface * PDI)
 {
 	// Get the first selected actor, walk through its children components to find the custom manipulators and then draw their proxies and visual representations to edit.
@@ -214,6 +204,7 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 		return;
 	}
 
+	HitProxies.Empty();
 	TArray<AActor*> SelectedActors;
 	GEditor->GetSelectedActors()->GetSelectedObjects(SelectedActors);
 	for(AActor* SelectedActor : SelectedActors)
@@ -232,7 +223,7 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 					FLinearColor DrawColor = ManipulatorComponent->Settings.Draw.BaseColor;
 					if ((ManipulatorComponent->GetName() == EditedComponentName && ManipulatorComponent->Settings.Property.NameToEdit == EditedPropertyName && ManipulatorComponent->GetOwner()->GetName() == EditedActorName) || GetBoolPropertyValue(ManipulatorComponent))
 					{
-						DrawColor = ManipulatorComponent->Settings.Draw.SelectedColor /* * SelectedColorMuliplier*/;
+						DrawColor = ManipulatorComponent->Settings.Draw.SelectedColor;
 					}
 
 					// Declaration of variables before drawing anything
@@ -251,14 +242,18 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 						WidgetSizeMultiplier = View->Project(WidgetTransform.GetTranslation()).W * 0.0065f / ZoomFactor;
 					}
 
+					// Make HitProxy
+					HManipulatorProxy* HitProxy = new HManipulatorProxy(ManipulatorComponent);
+					HitProxies.Add(HitProxy);
+
 					// =========================  WIRE BOX  =========================
 					for (FManipulatorSettingsMainDrawWireBox WireBox : ManipulatorComponent->GetAllShapesOfTypeWireBox())
 					{
 						
 						// Create Hit Proxy
-						PDI->SetHitProxy(new HManipulatorProxy(ManipulatorComponent));
+						PDI->SetHitProxy(HitProxy);
 						FTransform WireBoxTransform = WidgetTransform;
-						WireBoxTransform = ManipulatorComponent->CombineOffsetTransforms(WireBox.Offsets) * WidgetOverallSize * WireBoxTransform;
+						WireBoxTransform = HandleFinalShapeTransforms(ManipulatorComponent->CombineOffsetTransforms(WireBox.Offsets), WidgetOverallSize, WireBoxTransform);
 						FMatrix WidgetMatrix = WireBoxTransform.ToMatrixWithScale();
 
 						// Set Box Size
@@ -277,9 +272,9 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 					for (FManipulatorSettingsMainDrawWireDiamond WireDiamond : ManipulatorComponent->GetAllShapesOfTypeWireDiamond())
 					{
 						// Create Hit Proxy
-						PDI->SetHitProxy(new HManipulatorProxy(ManipulatorComponent));
+						PDI->SetHitProxy(HitProxy);
 						FTransform WireDiamondTransform = WidgetTransform;
-						WireDiamondTransform = ManipulatorComponent->CombineOffsetTransforms(WireDiamond.Offsets) * WidgetOverallSize * WireDiamondTransform;
+						WireDiamondTransform = HandleFinalShapeTransforms(ManipulatorComponent->CombineOffsetTransforms(WireDiamond.Offsets), WidgetOverallSize, WireDiamondTransform);
 						FMatrix WidgetMatrix = WireDiamondTransform.ToMatrixWithScale();
 
 						float DiamondSize = WireDiamond.Size * WidgetSizeMultiplier;
@@ -295,9 +290,9 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 					for (FManipulatorSettingsMainDrawPlane Plane : ManipulatorComponent->GetAllShapesOfTypePlane())
 					{
 						// Create Hit Proxy
-						PDI->SetHitProxy(new HManipulatorProxy(ManipulatorComponent));
+						PDI->SetHitProxy(HitProxy);
 						FTransform PlaneTransform = WidgetTransform;
-						PlaneTransform = ManipulatorComponent->CombineOffsetTransforms(Plane.Offsets) * WidgetOverallSize * PlaneTransform;
+						PlaneTransform = HandleFinalShapeTransforms(ManipulatorComponent->CombineOffsetTransforms(Plane.Offsets), WidgetOverallSize, PlaneTransform, true);
 						FMatrix WidgetMatrix = PlaneTransform.ToMatrixWithScale();
 
 						float PlaneSize = Plane.Size;
@@ -327,9 +322,9 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 					for (FManipulatorSettingsMainDrawCircle Circle : ManipulatorComponent->GetAllShapesOfTypeWireCircle())
 					{
 						// Create Hit Proxy
-						PDI->SetHitProxy(new HManipulatorProxy(ManipulatorComponent));
+						PDI->SetHitProxy(HitProxy);
 						FTransform CircleTransform = WidgetTransform;
-						CircleTransform = ManipulatorComponent->CombineOffsetTransforms(Circle.Offsets) * WidgetOverallSize * CircleTransform;
+						CircleTransform = HandleFinalShapeTransforms(ManipulatorComponent->CombineOffsetTransforms(Circle.Offsets), WidgetOverallSize, CircleTransform);
 
 						FVector X = CircleTransform.GetRotation().RotateVector(Circle.Rotation.RotateVector(FVector(1, 0, 0)) * CircleTransform.GetScale3D());
 						FVector Y = CircleTransform.GetRotation().RotateVector(Circle.Rotation.RotateVector(FVector(0, 1, 0)) * CircleTransform.GetScale3D());
@@ -347,6 +342,26 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 	FEdMode::Render(View, Viewport, PDI);
 }
 
+void FManipulatorToolsEditorEdMode::SelectManipulators(HManipulatorProxy* PropertyProxy)
+{
+	if (PropertyProxy != nullptr && PropertyProxy->ManipulatorComponent != nullptr)
+	{
+		EditedPropertyName = PropertyProxy->ManipulatorComponent->Settings.Property.NameToEdit;
+		EditedActorName = PropertyProxy->ManipulatorComponent->GetOwner()->GetName();
+		EditedComponentName = PropertyProxy->ManipulatorComponent->GetName();
+		EditedPropertyIndex = PropertyProxy->ManipulatorComponent->Settings.Property.Index;
+	}
+}
+
+void FManipulatorToolsEditorEdMode::ClearManipulatorSelection()
+{
+	EditedPropertyName = FString();
+	EditedComponentName = FString();
+	EditedActorName = FString();
+	EditedPropertyIndex = INDEX_NONE;
+	bEditedPropertyIsTransform = false;
+}
+
 bool FManipulatorToolsEditorEdMode::HandleClick(FEditorViewportClient * InViewportClient, HHitProxy * HitProxy, const FViewportClick & Click)
 {
 	// Sets the current edited component to look at when clicked we have to name match because components 
@@ -361,23 +376,16 @@ bool FManipulatorToolsEditorEdMode::HandleClick(FEditorViewportClient * InViewpo
 		}
 		else
 		{
-			EditedPropertyName = PropertyProxy->ManipulatorComponent->Settings.Property.NameToEdit;
-			EditedActorName = PropertyProxy->ManipulatorComponent->GetOwner()->GetName();
-			EManipulatorPropertyType propertyType = PropertyProxy->ManipulatorComponent->Settings.Property.Type;
-			EditedComponentName = PropertyProxy->ManipulatorComponent->GetName();
-			EditedPropertyIndex = PropertyProxy->ManipulatorComponent->Settings.Property.Index;
-			HandleSequencerTrackSelection(propertyType, FName(*EditedPropertyName), PropertyProxy->ManipulatorComponent);
+			SelectManipulators(PropertyProxy);
+			EManipulatorPropertyType PropertyType = PropertyProxy->ManipulatorComponent->Settings.Property.Type;
+			HandleSequencerTrackSelection(PropertyType, FName(*EditedPropertyName), PropertyProxy->ManipulatorComponent);
 		}
 		return true;
 	}
 	// Clear Info when de-selecting a Hit proxy
 	else if (HitProxy != nullptr && HitProxy->IsA(HActor::StaticGetType()) && Click.IsShiftDown())
 	{
-		EditedPropertyName = FString();
-		EditedComponentName = FString();
-		EditedActorName = FString();
-		EditedPropertyIndex = INDEX_NONE;
-		bEditedPropertyIsTransform = false;
+		ClearManipulatorSelection();
 	}
 	FEdMode::HandleClick(InViewportClient, HitProxy, Click);
 
@@ -791,7 +799,9 @@ void FManipulatorToolsEditorEdMode::KeyProperty(UObject* ObjectToKey, UProperty*
 	}
 }
 
-void FManipulatorToolsEditorEdMode::HandleSequencerTrackSelection(const EManipulatorPropertyType& propertyType, const FName& propertyName, UManipulatorComponent* ManipulatorComponent)
+
+
+void FManipulatorToolsEditorEdMode::HandleSequencerTrackSelection(const EManipulatorPropertyType& PropertyType, const FName& PropertyName, UManipulatorComponent* ManipulatorComponent)
 {		
 	// Handle updating the selected track when selecting a manipulator.
 	if (WeakSequencer != nullptr)
@@ -807,79 +817,32 @@ void FManipulatorToolsEditorEdMode::HandleSequencerTrackSelection(const EManipul
 			UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFor(WidgetTransform, ManipulatorComponent);
 			if (ObjectToEditProperties != nullptr && ObjectToEditProperties->GetName().Contains(binding.GetName()))
 			{
-				UClass* trackClass = nullptr;
-				switch (propertyType)
-				{
-				case EManipulatorPropertyType::MT_TRANSFORM:
-				{
-					trackClass = UMovieSceneTransformTrack::StaticClass();
-					break;
-				}
-				case EManipulatorPropertyType::MT_VECTOR:
-				{
-					trackClass = UMovieSceneVectorTrack::StaticClass();
-					break;
-				}
-				case EManipulatorPropertyType::MT_ENUM:
-				{
-					trackClass = UMovieSceneByteTrack::StaticClass();
-					break;
-				}
-				case EManipulatorPropertyType::MT_BOOL:
-				{
-					trackClass = UMovieSceneBoolTrack::StaticClass();
-					break;
-				}
-				}
-
-				if (trackClass != nullptr)
-				{
-					UMovieSceneTrack* track = scene->FindTrack(trackClass, binding.GetObjectGuid(), propertyName);
-					if (track != nullptr)
-					{
-						WeakSequencer.Pin()->EmptySelection();
-						// TODO: This can likely be updated to use the below to clean this up. Just need to get the propertyPath.
-						//TArray<FString> propertyNames;
-						//propertyNames.Add(propertyName.ToString());
-						//WeakSequencer.Pin()->SelectByPropertyPaths(propertyNames);
-						WeakSequencer.Pin()->SelectTrack(track);
-					}
-				}
+				TArray<FString> PropertyNames;
+				PropertyNames.Add(PropertyName.ToString());
+				WeakSequencer.Pin()->SelectByPropertyPaths(PropertyNames);
 			}
 		}
-	}
-
-}
-
-void FManipulatorToolsEditorEdMode::HandleSelectedColorMultiplier(float DeltaTime)
-{
-	float AddedTime = 0;
-	float Speed = DeltaTime * 0.8f;
-	float Min = 0.95f;
-	float Max = 1.2f;
-	// Simple linear animation for making the manipulator flash when selected
-	if (SelectedColorMultiplierDirection)
-	{
-		AddedTime = AddedTime + Speed;
-	}
-	else
-	{
-		AddedTime = AddedTime - Speed;
-	}
-	SelectedColorMuliplier = SelectedColorMuliplier + AddedTime;
-
-	FMath::Clamp(SelectedColorMuliplier, Min, Max);
-
-	if (SelectedColorMuliplier >= Max || SelectedColorMuliplier <= Min)
-	{
-		SelectedColorMultiplierDirection = !SelectedColorMultiplierDirection;
 	}
 }
 
 void FManipulatorToolsEditorEdMode::Tick(FEditorViewportClient * ViewportClient, float DeltaTime)
 {
 	FEdMode::Tick(ViewportClient, DeltaTime);
-	HandleSelectedColorMultiplier(DeltaTime);
+}
+
+void FManipulatorToolsEditorEdMode::UpdatedIsSelectionLocked(bool bNewIsSelectionLocked)
+{
+	bIsSelectionLocked = bNewIsSelectionLocked;
+}
+
+bool FManipulatorToolsEditorEdMode::GetIsSelectionLocked() const
+{
+	return bIsSelectionLocked;
+}
+
+bool FManipulatorToolsEditorEdMode::Select(AActor * InActor, bool bInSelected)
+{
+	return GetIsSelectionLocked();
 }
 
 void FManipulatorToolsEditorEdMode::SetSequencer(TWeakPtr<ISequencer> InSequencer)
@@ -889,5 +852,51 @@ void FManipulatorToolsEditorEdMode::SetSequencer(TWeakPtr<ISequencer> InSequence
 	{
 		// TODO: Reference ControlRigEditMode for this. Getting this setup may be a more correct way of doing auto key.
 		//StaticCastSharedPtr<SControlRigEditModeTools>(Toolkit->GetInlineContent())->SetSequencer(InSequencer);
+	}
+}
+
+void FManipulatorToolsEditorEdMode::OnSequencerTrackSelectionChanged(TArray<UMovieSceneTrack*> InTracks)
+{
+	UE_LOG(LogTemp, Warning, TEXT("TrackSelectionChanged"));
+	if (WeakSequencer != nullptr)
+	{
+		TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+		UMovieSceneSequence* sequenceScene = Sequencer->GetFocusedMovieSceneSequence();
+		UMovieScene* scene = sequenceScene->GetMovieScene();
+		//auto bindings = scene->GetBindings();
+
+		/*
+		if (InTracks.Num() > 0)
+		{
+			for (HManipulatorProxy* HitProxy : HitProxies)
+			{
+				if (HitProxy != nullptr && HitProxy->ManipulatorComponent != nullptr)
+				{
+					if (HitProxy->ManipulatorComponent->Settings.Property.NameToEdit == InTracks[0]->GetTrackName().ToString())
+					{
+						SelectManipulators(HitProxy);
+					}
+					else
+					{
+						ClearManipulatorSelection();
+					}
+				}
+			}
+			//UE_LOG(LogTemp, Warning, TEXT("Track Name %s"), *InTracks[0]->GetTrackName().ToString());
+			//InTracks[0].
+		}
+		*/
+
+		//AActor* SelectedActor = GetFirstSelectedActorInstance();
+		/*
+		for (auto binding : bindings)
+		{
+			FTransform WidgetTransform = FTransform::Identity;
+			UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFor(WidgetTransform, ManipulatorComponent);
+			if (ObjectToEditProperties != nullptr && ObjectToEditProperties->GetName().Contains(binding.GetName()))
+			{
+			}
+		}
+		*/
 	}
 }

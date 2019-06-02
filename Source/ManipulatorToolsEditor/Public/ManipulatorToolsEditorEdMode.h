@@ -8,6 +8,30 @@
 #include "ISequencerModule.h"
 #include "ManipulatorComponent.h"
 
+/** Hit proxy used for editable properties */
+struct HManipulatorProxy : public HHitProxy
+{
+	DECLARE_HIT_PROXY();
+
+	/** Component this hit proxy will talk to. */
+	UManipulatorComponent* ManipulatorComponent;
+
+	/** This property is a transform */
+	bool	bPropertyIsTransform;
+
+	// Constructor
+	HManipulatorProxy(UManipulatorComponent* ManipulatorComponent) : HHitProxy(HPP_Foreground), ManipulatorComponent(ManipulatorComponent)
+	{
+	}
+
+	/** Show cursor as cross when over this handle */
+	virtual EMouseCursor::Type GetMouseCursor() override
+	{
+		return EMouseCursor::Crosshairs;
+	}
+};
+
+IMPLEMENT_HIT_PROXY(HManipulatorProxy, HHitProxy);
 
 class FManipulatorToolsEditorEdMode : public FEdMode
 {
@@ -40,25 +64,34 @@ public:
 	bool UsesToolkits() const override;
 	// End of FEdMode interface
 
+	virtual bool Select(AActor* InActor, bool bInSelected) override;
+
 	void SetSequencer(TWeakPtr<ISequencer> InSequencer);
+	void OnSequencerTrackSelectionChanged(TArray<UMovieSceneTrack*> InTracks);
 
 	// EditedPropertyName Already Exists in EdMode
 	FString EditedManipulatorPropertyName = "";
 	FString EditedComponentName = "";
 	FString EditedActorName = "";
-	void HandleSelectedColorMultiplier(float DeltaTime);
 
-	float SelectedColorMuliplier = 1;
-	bool SelectedColorMultiplierDirection = false;
 	virtual void Tick(FEditorViewportClient* ViewportClient, float DeltaTime) override;
 
-
+	void UpdatedIsSelectionLocked(bool bNewIsSelectionLocked);
+	bool GetIsSelectionLocked() const;
 private:
+	// 
+	bool bIsSelectionLocked = false;
 
 	/** Weak pointer to the last sequencer that was opened */
 	TWeakPtr<ISequencer> WeakSequencer;
 
-	void HandleSequencerTrackSelection(const EManipulatorPropertyType& propertyType, const FName& propertyName, UManipulatorComponent* ManipulatorComponent);
+	void HandleSequencerTrackSelection(const EManipulatorPropertyType& PropertyType, const FName& PropertyName, UManipulatorComponent* ManipulatorComponent);
 
 	void KeyProperty(UObject* ObjectToKey, UProperty* propertyToUse);
+
+	FTransform HandleFinalShapeTransforms(FTransform ShapeTransform, FTransform OverallScale, FTransform WidgetTransform, bool RotateScale = false);
+
+	TArray<HManipulatorProxy*> HitProxies;
+	void SelectManipulators(HManipulatorProxy* PropertyProxy);
+	void ClearManipulatorSelection();
 };

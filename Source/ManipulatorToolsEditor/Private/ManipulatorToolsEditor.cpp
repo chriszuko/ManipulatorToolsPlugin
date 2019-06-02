@@ -3,7 +3,6 @@
 #include "ManipulatorToolsEditor.h"
 #include "ManipulatorToolsEditorEdMode.h"
 #include "ManipulatorToolsEditorEdModeStyle.h"
-#include "ManipulatorComponentCustomization.h"
 #include "PropertyEditorModule.h"
 #include "EditorModeManager.h"
 #include "MovieSceneSequence.h"
@@ -13,10 +12,6 @@
 void FManipulatorToolsEditorModule::StartupModule()
 {
 	FEditorModeRegistry::Get().RegisterMode<FManipulatorToolsEditorEdMode>(FManipulatorToolsEditorEdMode::EM_ManipulatorToolsEditorEdModeId, LOCTEXT("ManipulatorToolsEditorEdModeName", "ManipulatorToolsEditorEdMode"), FSlateIcon(FManipulatorToolsEditorEdModeStyle::Get().GetStyleSetName(), "ManipulatorToolsEditorEdMode", "ManipulatorToolsEditorEdMode.Small"), true);
-	
-	// Stub in for figuring out detail customizations for the struct
-	//FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-	//PropertyModule.RegisterCustomPropertyTypeLayout("ManipulatorSettings", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FManipulatorSettingsMainCustomization::MakeInstance));'
 
 	// Register for when the sequencer is opened in the editor to grab the reference.
 	ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>("Sequencer");
@@ -40,9 +35,6 @@ void FManipulatorToolsEditorModule::HandleSequencerCreated(TSharedRef<ISequencer
 {
 	WeakSequencer = InSequencer;
 
-	// TODO Nolan: Hand off the sequencer to the python bridge.
-	// Python bridge should allow python to call NotifyMovieSceneDataChanged which should refresh the sequencer display.
-
 	TWeakPtr<ISequencer> LocalSequencer = InSequencer;
 
 	// When a sequence is activated.
@@ -59,11 +51,26 @@ void FManipulatorToolsEditorModule::HandleSequencerCreated(TSharedRef<ISequencer
 		}
 	};
 
+	//InSequencer->GetSelectionChangedTracks().AddLambda([LocalSequencer](TArray<UMovieSceneTrack*> InTracks)
+	auto HandleOnTrackSelectionChanged = [this, LocalSequencer](TArray<UMovieSceneTrack*> InTracks)
+	{
+		if (LocalSequencer.IsValid())
+		{
+			if (FManipulatorToolsEditorEdMode* ManipulatorToolsEdMode = static_cast<FManipulatorToolsEditorEdMode*>(GLevelEditorModeTools().GetActiveMode(FManipulatorToolsEditorEdMode::EM_ManipulatorToolsEditorEdModeId)))
+			{
+				ManipulatorToolsEdMode->OnSequencerTrackSelectionChanged(InTracks);
+			}
+		}
+	};
+	
 	InSequencer->OnActivateSequence().AddLambda(HandleActivateSequence);
+	InSequencer->GetSelectionChangedTracks().AddLambda(HandleOnTrackSelectionChanged);
 
 	// Call into activation callback to handle initial activation
 	FMovieSceneSequenceID SequenceID = MovieSceneSequenceID::Root;
+	TArray<UMovieSceneTrack*> InTracks;
 	HandleActivateSequence(SequenceID);
+	HandleOnTrackSelectionChanged(InTracks);
 }
 
 #undef LOCTEXT_NAMESPACE

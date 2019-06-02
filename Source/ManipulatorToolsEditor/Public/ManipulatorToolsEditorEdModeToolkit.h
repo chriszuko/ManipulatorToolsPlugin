@@ -20,6 +20,10 @@ public:
 	virtual class FEdMode* GetEditorMode() const override;
 	virtual TSharedPtr<class SWidget> GetInlineContent() const override { return ToolkitWidget; }
 
+	//bool bIsSelectionLocked = false;
+	void OnIsSelectionLockedChanged(ECheckBoxState NewCheckedState);
+	ECheckBoxState IsSelectionLocked() const;
+
 private:
 
 	TSharedPtr<SWidget> ToolkitWidget;

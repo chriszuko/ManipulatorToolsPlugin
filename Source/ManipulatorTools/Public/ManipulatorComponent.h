@@ -366,7 +366,7 @@ public:
 	TArray<FManipulatorSettingsMainDrawWireDiamond> GetAllShapesOfTypeWireDiamond();
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "ManipulatorTools|Shapes")
-	FManipulatorSettingsMainDrawWireDiamond GetShapeOfTypeWireDiamond(UPARAM(ref) bool& Success, int32 Index);
+	FManipulatorSettingsMainDrawWireDiamond GetShapeOfTypeWireDiamond(bool& Success, int32 Index);
 
 	UFUNCTION(BlueprintCallable, Category = "ManipulatorTools|Shapes")
 	void SetShapeOfTypeWireDiamond(int32 Index, FManipulatorSettingsMainDrawWireDiamond WireDiamond);
@@ -378,7 +378,7 @@ public:
 	TArray<FManipulatorSettingsMainDrawCircle> GetAllShapesOfTypeWireCircle();
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "ManipulatorTools|Shapes")
-	FManipulatorSettingsMainDrawCircle GetShapeOfTypeWireCircle(UPARAM(ref) bool& Success, int32 Index);
+	FManipulatorSettingsMainDrawCircle GetShapeOfTypeWireCircle(bool& Success, int32 Index);
 
 	UFUNCTION(BlueprintCallable, Category = "ManipulatorTools|Shapes")
 	void SetShapeOfTypeWireCircle(int32 Index, FManipulatorSettingsMainDrawCircle Circle);
@@ -390,7 +390,7 @@ public:
 	TArray<FManipulatorSettingsMainDrawPlane> GetAllShapesOfTypePlane();
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "ManipulatorTools|Shapes")
-	FManipulatorSettingsMainDrawPlane GetShapeOfTypePlane(UPARAM(ref) bool& Success, int32 Index);
+	FManipulatorSettingsMainDrawPlane GetShapeOfTypePlane(bool& Success, int32 Index);
 
 	UFUNCTION(BlueprintCallable, Category = "ManipulatorTools|Shapes")
 	void SetShapeOfTypePlane(int32 Index, FManipulatorSettingsMainDrawPlane Plane);
