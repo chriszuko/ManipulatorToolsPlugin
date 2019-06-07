@@ -37,39 +37,39 @@ void FManipulatorToolsEditorEdModeToolkit::Init(const TSharedPtr<IToolkitHost>& 
 			.VAlign(VAlign_Top)
 			[
 				SNew(SCheckBox)
-				.OnCheckStateChanged(this, &FManipulatorToolsEditorEdModeToolkit::OnIsSelectionLockedChanged)
-				.IsChecked(this, &FManipulatorToolsEditorEdModeToolkit::IsSelectionLocked)
+				.OnCheckStateChanged(this, &FManipulatorToolsEditorEdModeToolkit::OnIsActorSelectionLockedChanged)
+				.IsChecked(this, &FManipulatorToolsEditorEdModeToolkit::IsActorSelectionLocked)
 				.ToolTipText(LOCTEXT("EnableDisableButtonToolTip", "Allows you to not accidentally change your selection as much."))
 				.Content()
 				[
 					SNew(STextBlock)
-					.Text(LOCTEXT("IsSelectionLockedCheckbox", "Lock Actor Selection"))
+					.Text(LOCTEXT("IsActorSelectionLockedCheckbox", "Lock Actor Selection"))
 				]
 			]
 		];
 	FModeToolkit::Init(InitToolkitHost);
 }
 
-ECheckBoxState FManipulatorToolsEditorEdModeToolkit::IsSelectionLocked() const
+ECheckBoxState FManipulatorToolsEditorEdModeToolkit::IsActorSelectionLocked() const
 {
 	if (FManipulatorToolsEditorEdMode* ManipulatorToolsEdMode = static_cast<FManipulatorToolsEditorEdMode*>(GLevelEditorModeTools().GetActiveMode(FManipulatorToolsEditorEdMode::EM_ManipulatorToolsEditorEdModeId)))
 	{
-		return ManipulatorToolsEdMode->GetIsSelectionLocked() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+		return ManipulatorToolsEdMode->GetIsActorSelectionLocked() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 	}
 	return ECheckBoxState::Unchecked;
 }
 
-void FManipulatorToolsEditorEdModeToolkit::OnIsSelectionLockedChanged(ECheckBoxState NewCheckedState)
+void FManipulatorToolsEditorEdModeToolkit::OnIsActorSelectionLockedChanged(ECheckBoxState NewCheckedState)
 {
 	if (FManipulatorToolsEditorEdMode* ManipulatorToolsEdMode = static_cast<FManipulatorToolsEditorEdMode*>(GLevelEditorModeTools().GetActiveMode(FManipulatorToolsEditorEdMode::EM_ManipulatorToolsEditorEdModeId)))
 	{
 		if (NewCheckedState == ECheckBoxState::Checked)
 		{
-			ManipulatorToolsEdMode->UpdatedIsSelectionLocked(true);
+			ManipulatorToolsEdMode->UpdateIsActorSelectionLocked(true);
 		}
 		else
 		{
-			ManipulatorToolsEdMode->UpdatedIsSelectionLocked(false);
+			ManipulatorToolsEdMode->UpdateIsActorSelectionLocked(false);
 		}
 	}
 }

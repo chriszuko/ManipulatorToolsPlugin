@@ -25,130 +25,7 @@
 
 const FEditorModeID FManipulatorToolsEditorEdMode::EM_ManipulatorToolsEditorEdModeId = TEXT("EM_ManipulatorToolsEditorEdMode");
 
-
-
-
-
-
-
-// A bunch of functions that EdMode Uses to get properties by name that I don't have access to because 
-// EdMode is dumb and doesn't put it in the header so I followed their example and copied it.
-namespace
-{
-	/**
-	 * Returns a reference to the named property value data in the given container.
-	 */
-	template<typename T>
-	T* GetPropertyValuePtrByName(const UStruct* InStruct, void* InContainer, FString PropertyName, int32 ArrayIndex, UProperty*& OutProperty)
-	{
-		T* ValuePtr = NULL;
-
-		// Extract the vector ptr recursively using the property name
-		int32 DelimPos = PropertyName.Find(TEXT("."));
-		if (DelimPos != INDEX_NONE)
-		{
-			// Parse the property name and (optional) array index
-			int32 SubArrayIndex = 0;
-			FString NameToken = PropertyName.Left(DelimPos);
-			int32 ArrayPos = NameToken.Find(TEXT("["));
-			if (ArrayPos != INDEX_NONE)
-			{
-				FString IndexToken = NameToken.RightChop(ArrayPos + 1).LeftChop(1);
-				SubArrayIndex = FCString::Atoi(*IndexToken);
-
-				NameToken = PropertyName.Left(ArrayPos);
-			}
-
-			// Obtain the property info from the given structure definition
-			UProperty* CurrentProp = FindField<UProperty>(InStruct, FName(*NameToken));
-			// Check first to see if this is a simple structure (i.e. not an array of structures)
-			UStructProperty* StructProp = Cast<UStructProperty>(CurrentProp);
-			if (StructProp != NULL)
-			{
-				// Recursively call back into this function with the structure property and container value
-				ValuePtr = GetPropertyValuePtrByName<T>(StructProp->Struct, StructProp->ContainerPtrToValuePtr<void>(InContainer), PropertyName.RightChop(DelimPos + 1), ArrayIndex, OutProperty);
-			}
-			else
-			{
-				// Check to see if this is an array
-				UArrayProperty* ArrayProp = Cast<UArrayProperty>(CurrentProp);
-				if (ArrayProp != NULL)
-				{
-					// It is an array, now check to see if this is an array of structures
-					StructProp = Cast<UStructProperty>(ArrayProp->Inner);
-					if (StructProp != NULL)
-					{
-						FScriptArrayHelper_InContainer ArrayHelper(ArrayProp, InContainer);
-						if (ArrayHelper.IsValidIndex(SubArrayIndex))
-						{
-							// Recursively call back into this function with the array element and container value
-							ValuePtr = GetPropertyValuePtrByName<T>(StructProp->Struct, ArrayHelper.GetRawPtr(SubArrayIndex), PropertyName.RightChop(DelimPos + 1), ArrayIndex, OutProperty);
-						}
-					}
-				}
-			}
-		}
-		else
-		{
-			UProperty* Prop = FindField<UProperty>(InStruct, FName(*PropertyName));
-			if (Prop != NULL)
-			{
-				if (UArrayProperty* ArrayProp = Cast<UArrayProperty>(Prop))
-				{
-					check(ArrayIndex != INDEX_NONE);
-
-					// Property is an array property, so make sure we have a valid index specified
-					FScriptArrayHelper_InContainer ArrayHelper(ArrayProp, InContainer);
-					if (ArrayHelper.IsValidIndex(ArrayIndex))
-					{
-						ValuePtr = (T*)ArrayHelper.GetRawPtr(ArrayIndex);
-					}
-				}
-				else
-				{
-					// Property is a vector property, so access directly
-					ValuePtr = Prop->ContainerPtrToValuePtr<T>(InContainer);
-				}
-
-				OutProperty = Prop;
-			}
-		}
-
-		return ValuePtr;
-	}
-
-	/**
-	 * Returns the value of the property with the given name in the given Actor instance.
-	 */
-	template<typename T>
-	T GetPropertyValueByName(UObject* Object, FString PropertyName, int32 PropertyIndex)
-	{
-		T Value;
-		UProperty* DummyProperty = NULL;
-		if (T* ValuePtr = GetPropertyValuePtrByName<T>(Object->GetClass(), Object, PropertyName, PropertyIndex, DummyProperty))
-		{
-			Value = *ValuePtr;
-		}
-		else
-		{
-			Value = T();
-		}
-		return Value;
-	}
-
-	/**
-	 * Sets the property with the given name in the given Actor instance to the given value.
-	 */
-	template<typename T>
-	void SetPropertyValueByName(UObject* Object, FString PropertyName, int32 PropertyIndex, const T& InValue, UProperty*& OutProperty)
-	{
-		if (T* ValuePtr = GetPropertyValuePtrByName<T>(Object->GetClass(), Object, PropertyName, PropertyIndex, OutProperty))
-		{
-			*ValuePtr = InValue;
-		}
-	}
-}
-
+/* ---------- FEdMode Interface ---------- */
 
 FManipulatorToolsEditorEdMode::FManipulatorToolsEditorEdMode()
 {
@@ -186,15 +63,6 @@ void FManipulatorToolsEditorEdMode::Exit()
 	FEdMode::Exit();
 }
 
-FTransform FManipulatorToolsEditorEdMode::HandleFinalShapeTransforms(FTransform ShapeTransform, FTransform OverallScale, FTransform WidgetTransform, bool RotateScale)
-{
-	if (RotateScale)
-	{
-		WidgetTransform.SetScale3D(ShapeTransform.GetRotation().Inverse().RotateVector(WidgetTransform.GetScale3D()));
-	}
-	return ShapeTransform * OverallScale * WidgetTransform;
-}
-
 void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * Viewport, FPrimitiveDrawInterface * PDI)
 {
 	// Get the first selected actor, walk through its children components to find the custom manipulators and then draw their proxies and visual representations to edit.
@@ -204,7 +72,6 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 		return;
 	}
 
-	HitProxies.Empty();
 	TArray<AActor*> SelectedActors;
 	GEditor->GetSelectedActors()->GetSelectedObjects(SelectedActors);
 	for(AActor* SelectedActor : SelectedActors)
@@ -218,10 +85,11 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 				// Visibility also controls whether or not it will draw.
 				if (ManipulatorComponent != nullptr && ManipulatorComponent->IsVisible())
 				{
-					
+					FManipulatorData* ManipulatorData = GetManipulatorData(ManipulatorComponent);
+
 					// Set Color Based off of selection, bools handle their selection a bit different. 
 					FLinearColor DrawColor = ManipulatorComponent->Settings.Draw.BaseColor;
-					if ((ManipulatorComponent->GetName() == EditedComponentName && ManipulatorComponent->Settings.Property.NameToEdit == EditedPropertyName && ManipulatorComponent->GetOwner()->GetName() == EditedActorName) || GetBoolPropertyValue(ManipulatorComponent))
+					if (ManipulatorComponent->GetManipulatorID() == ManipulatorData->ID || GetBoolPropertyValueFromManipulator(ManipulatorComponent))
 					{
 						DrawColor = ManipulatorComponent->Settings.Draw.SelectedColor;
 					}
@@ -244,9 +112,8 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 
 					// Make HitProxy
 					HManipulatorProxy* HitProxy = new HManipulatorProxy(ManipulatorComponent);
-					HitProxies.Add(HitProxy);
 
-					// =========================  WIRE BOX  =========================
+					// ==========  WIRE BOX  ==========
 					for (FManipulatorSettingsMainDrawWireBox WireBox : ManipulatorComponent->GetAllShapesOfTypeWireBox())
 					{
 						
@@ -268,7 +135,7 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 						DrawWireBox(PDI, WidgetMatrix, BoxSize, DrawBoxColor, WidgetDepthPriority, WidgetThickness);
 					}
 
-					// =========================  WIRE DIAMOND  =========================
+					// ==========  WIRE DIAMOND  ==========
 					for (FManipulatorSettingsMainDrawWireDiamond WireDiamond : ManipulatorComponent->GetAllShapesOfTypeWireDiamond())
 					{
 						// Create Hit Proxy
@@ -286,7 +153,7 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 
 					}
 
-					// =========================  PLANE  =========================
+					// ==========  PLANE  ==========
 					for (FManipulatorSettingsMainDrawPlane Plane : ManipulatorComponent->GetAllShapesOfTypePlane())
 					{
 						// Create Hit Proxy
@@ -318,7 +185,7 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 						DrawPlane10x10(PDI, WidgetMatrix, PlaneSize, FVector2D(UVMin, UVMin), FVector2D(UVMax, UVMax), RenderProxy, WidgetDepthPriority);
 					}
 
-					// =========================  CIRCLE  =========================
+					// ==========  CIRCLE  ==========
 					for (FManipulatorSettingsMainDrawCircle Circle : ManipulatorComponent->GetAllShapesOfTypeWireCircle())
 					{
 						// Create Hit Proxy
@@ -342,26 +209,6 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 	FEdMode::Render(View, Viewport, PDI);
 }
 
-void FManipulatorToolsEditorEdMode::SelectManipulators(HManipulatorProxy* PropertyProxy)
-{
-	if (PropertyProxy != nullptr && PropertyProxy->ManipulatorComponent != nullptr)
-	{
-		EditedPropertyName = PropertyProxy->ManipulatorComponent->Settings.Property.NameToEdit;
-		EditedActorName = PropertyProxy->ManipulatorComponent->GetOwner()->GetName();
-		EditedComponentName = PropertyProxy->ManipulatorComponent->GetName();
-		EditedPropertyIndex = PropertyProxy->ManipulatorComponent->Settings.Property.Index;
-	}
-}
-
-void FManipulatorToolsEditorEdMode::ClearManipulatorSelection()
-{
-	EditedPropertyName = FString();
-	EditedComponentName = FString();
-	EditedActorName = FString();
-	EditedPropertyIndex = INDEX_NONE;
-	bEditedPropertyIsTransform = false;
-}
-
 bool FManipulatorToolsEditorEdMode::HandleClick(FEditorViewportClient * InViewportClient, HHitProxy * HitProxy, const FViewportClick & Click)
 {
 	// Sets the current edited component to look at when clicked we have to name match because components 
@@ -372,13 +219,27 @@ bool FManipulatorToolsEditorEdMode::HandleClick(FEditorViewportClient * InViewpo
 		//Handle Toggling Bool on and Off.
 		if (PropertyProxy->ManipulatorComponent->Settings.Property.Type == EManipulatorPropertyType::MT_BOOL)
 		{
-			ToggleBoolPropertyValue(PropertyProxy->ManipulatorComponent);
+			ToggleBoolPropertyValueFromManipulator(PropertyProxy->ManipulatorComponent);
 		}
 		else
 		{
-			SelectManipulators(PropertyProxy);
+			if (Click.IsControlDown())
+			{
+				ToggleSelectedManipulator(PropertyProxy->ManipulatorComponent);
+			}
+			else if (Click.IsShiftDown())
+			{
+				AddNewSelectedManipulator(PropertyProxy->ManipulatorComponent);
+			}
+			else
+			{
+				ClearManipulatorSelection();
+				AddNewSelectedManipulator(PropertyProxy->ManipulatorComponent);
+			}
+			
 			EManipulatorPropertyType PropertyType = PropertyProxy->ManipulatorComponent->Settings.Property.Type;
-			HandleSequencerTrackSelection(PropertyType, FName(*EditedPropertyName), PropertyProxy->ManipulatorComponent);
+			//TODO: Multi-Select
+			SequencerHandleTrackSelection(PropertyType, FName(*PropertyProxy->ManipulatorComponent->Settings.Property.NameToEdit), PropertyProxy->ManipulatorComponent);
 		}
 		return true;
 	}
@@ -397,14 +258,17 @@ FVector FManipulatorToolsEditorEdMode::GetWidgetLocation() const
 	// Update the widget location so that it doesn't leave you with odd relative offset stuff.
 	UManipulatorComponent* ManipulatorComponent = NewObject<UManipulatorComponent>();
 	FTransform WidgetTransform = FTransform::Identity;
-	if (GetSelectedManipulatorComponent(ManipulatorComponent, WidgetTransform))
+	if (SelectedManipulators.Num() > 0)
 	{
-		FVector WorldLocation = Owner->PivotLocation;
-		// Handle Enum property offsets
-		WidgetTransform = GetManipulatorTransformWithOffsets(ManipulatorComponent);
-		// Do some crazy magical shit to offset the widget location
-		WorldLocation = WidgetTransform.GetLocation();
-		return WorldLocation;
+		if (GetSelectedManipulatorComponent(SelectedManipulators.Last(), ManipulatorComponent, WidgetTransform))
+		{
+			FVector WorldLocation = Owner->PivotLocation;
+			// Handle Enum property offsets
+			WidgetTransform = GetManipulatorTransformWithOffsets(ManipulatorComponent);
+			// Do some crazy magical shit to offset the widget location
+			WorldLocation = WidgetTransform.GetLocation();
+			return WorldLocation;
+		}
 	}
 	FEdMode::GetWidgetLocation();
 	return Owner->PivotLocation;
@@ -415,98 +279,104 @@ bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewport
 	// The input delta is what tells the widget how much to adjust its value by based on user input. 
 	UManipulatorComponent* ManipulatorComponent;
 	FTransform WidgetTransform = FTransform::Identity;
-	if (GetSelectedManipulatorComponent(ManipulatorComponent, WidgetTransform) && InViewportClient->GetCurrentWidgetAxis() != EAxisList::None)
+	for (FManipulatorData* ManipulatorData : SelectedManipulators)
 	{
-		// Get the object to edit properties is the only way I could correctly get something that talked nicely to the get property value by name. 
-		UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFor(WidgetTransform, ManipulatorComponent);
-		if (ObjectToEditProperties != nullptr)
+		if (GetSelectedManipulatorComponent(ManipulatorData, ManipulatorComponent, WidgetTransform) && InViewportClient->GetCurrentWidgetAxis() != EAxisList::None)
 		{
-			// Not sure what this does.. but i kept it.
-			GEditor->NoteActorMovement();
-
-			if (!EditedPropertyName.IsEmpty())
+			// Get the object to edit properties is the only way I could correctly get something that talked nicely to the get property value by name. 
+			UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(WidgetTransform, ManipulatorComponent);
+			if (ObjectToEditProperties != nullptr && ManipulatorComponent != nullptr)
 			{
-				FTransform LocalTM = FTransform::Identity;
-				FTransform NewTM = FTransform::Identity;
-				FVector LocalLocation = FVector();
-				uint8 EnumValue = 0;
-				
-				FTransform DeltaTransform = FTransform(InRot, InDrag, InScale);
-				float CurrentFloat = 0;
+				// Not sure what this does.. but i kept it.
+				GEditor->NoteActorMovement();
 
-				// Get the property values based off of their type on the component and the name on the component.
-				switch (ManipulatorComponent->Settings.Property.Type)
+				if (!ManipulatorData->PropertyName.IsEmpty())
 				{
-				case EManipulatorPropertyType::MT_TRANSFORM:
-					// Get Property Here
-					LocalTM = GetPropertyValueByName<FTransform>(ObjectToEditProperties, EditedPropertyName, EditedPropertyIndex);
-					break;
-				case EManipulatorPropertyType::MT_VECTOR:
-					LocalLocation = GetPropertyValueByName<FVector>(ObjectToEditProperties, EditedPropertyName, EditedPropertyIndex);
-					LocalTM = FTransform(LocalLocation);
-					break;
-				case EManipulatorPropertyType::MT_ENUM:
-					EnumValue = GetPropertyValueByName<uint8>(ObjectToEditProperties, EditedPropertyName, EditedPropertyIndex);
-					break;
+					FTransform LocalTM = FTransform::Identity;
+					FTransform NewTM = FTransform::Identity;
+					FVector LocalLocation = FVector();
+					uint8 EnumValue = 0;
+
+					FTransform DeltaTransform = FTransform(InRot, InDrag, InScale);
+					float CurrentFloat = 0;
+
+					// Get the property values based off of their type on the component and the name on the component.
+					switch (ManipulatorComponent->Settings.Property.Type)
+					{
+					case EManipulatorPropertyType::MT_TRANSFORM:
+						// Get Property Here
+						LocalTM = GetPropertyValueByName<FTransform>(ObjectToEditProperties, ManipulatorData->PropertyName, ManipulatorData->PropertyIndex);
+						break;
+					case EManipulatorPropertyType::MT_VECTOR:
+						LocalLocation = GetPropertyValueByName<FVector>(ObjectToEditProperties, ManipulatorData->PropertyName, ManipulatorData->PropertyIndex);
+						LocalTM = FTransform(LocalLocation);
+						break;
+					case EManipulatorPropertyType::MT_ENUM:
+						EnumValue = GetPropertyValueByName<uint8>(ObjectToEditProperties, ManipulatorData->PropertyName, ManipulatorData->PropertyIndex);
+						break;
+					}
+
+					// Use the visual offset to correctly translate information on super visually offset widgets.
+					if (ManipulatorComponent->Settings.Draw.Extras.UsePropertyValueAsInitialOffset)
+					{
+						WidgetTransform.SetRotation(WidgetTransform.GetRotation() * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets).GetRotation());
+					}
+
+					// Flip Transforms if told to flip X
+					LocalTM = FlipTransformOnX(LocalTM, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXLocation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualYRotation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXScale);
+
+					// Calculate world transform
+					NewTM = LocalTM * WidgetTransform;
+
+					// Apply delta in world space
+					NewTM.SetTranslation(NewTM.GetTranslation() + InDrag);
+
+					NewTM.SetRotation(InRot.Quaternion() * NewTM.GetRotation());
+					// Convert new world transform back into local space
+					LocalTM = NewTM.GetRelativeTransform(WidgetTransform);
+					LocalTM.SetRotation(LocalTM.GetRotation());
+					// Apply delta scale
+					LocalTM.SetScale3D(LocalTM.GetScale3D() + InScale);
+
+					// Flip Transform Back so the values are correct
+					LocalTM = FlipTransformOnX(LocalTM, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXLocation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualYRotation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXScale);
+
+					LocalTM = ManipulatorComponent->ConstrainTransform(LocalTM);
+
+
+
+					// Prepare for editing
+					ObjectToEditProperties->PreEditChange(NULL);
+					UProperty* SetProperty = NULL;
+
+					// Set the property values based off of their type on the component and the name on the component.
+					switch (ManipulatorComponent->Settings.Property.Type)
+					{
+					case EManipulatorPropertyType::MT_TRANSFORM:
+						// Get Property Here
+						SetPropertyValueByName<FTransform>(ObjectToEditProperties, ManipulatorData->PropertyName, ManipulatorData->PropertyIndex, LocalTM, SetProperty);
+						break;
+					case EManipulatorPropertyType::MT_VECTOR:
+						SetPropertyValueByName<FVector>(ObjectToEditProperties, ManipulatorData->PropertyName, ManipulatorData->PropertyIndex, LocalTM.GetLocation(), SetProperty);
+						break;
+					case EManipulatorPropertyType::MT_ENUM:
+						//Handle Enum Change
+						EnumValue = HandleEnumPropertyInputDelta(ManipulatorComponent, LocalTM, EnumValue);
+						SetPropertyValueByName<uint8>(ObjectToEditProperties, ManipulatorData->PropertyName, ManipulatorData->PropertyIndex, EnumValue, SetProperty);
+						break;
+					}
+
+					SequencerKeyProperty(ObjectToEditProperties, SetProperty);
+
+					FPropertyChangedEvent PropertyChangeEvent(SetProperty);
+					ObjectToEditProperties->PostEditChangeProperty(PropertyChangeEvent);
 				}
-
-				// Use the visual offset to correctly translate information on super visually offset widgets.
-				if (ManipulatorComponent->Settings.Draw.Extras.UsePropertyValueAsInitialOffset)
-				{
-					WidgetTransform.SetRotation(WidgetTransform.GetRotation() * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets).GetRotation());
-				}
-
-				// Flip Transforms if told to flip X
-				LocalTM = FlipTransformOnX(LocalTM, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXLocation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualYRotation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXScale);
-
-				// Calculate world transform
-				NewTM = LocalTM * WidgetTransform;
-
-				// Apply delta in world space
-				NewTM.SetTranslation(NewTM.GetTranslation() + InDrag);
-
-				NewTM.SetRotation(InRot.Quaternion() * NewTM.GetRotation());
-				// Convert new world transform back into local space
-				LocalTM = NewTM.GetRelativeTransform(WidgetTransform);
-				LocalTM.SetRotation(LocalTM.GetRotation());
-				// Apply delta scale
-				LocalTM.SetScale3D(LocalTM.GetScale3D() + InScale);
-
-				// Flip Transform Back so the values are correct
-				LocalTM = FlipTransformOnX(LocalTM, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXLocation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualYRotation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXScale);
-
-				LocalTM = ManipulatorComponent->ConstrainTransform(LocalTM);
-
-
-
-				// Prepare for editing
-				ObjectToEditProperties->PreEditChange(NULL);
-				UProperty* SetProperty = NULL;
-
-				// Set the property values based off of their type on the component and the name on the component.
-				switch (ManipulatorComponent->Settings.Property.Type)
-				{
-				case EManipulatorPropertyType::MT_TRANSFORM:
-					// Get Property Here
-					SetPropertyValueByName<FTransform>(ObjectToEditProperties, EditedPropertyName, EditedPropertyIndex, LocalTM, SetProperty);
-					break;
-				case EManipulatorPropertyType::MT_VECTOR:
-					SetPropertyValueByName<FVector>(ObjectToEditProperties, EditedPropertyName, EditedPropertyIndex, LocalTM.GetLocation(), SetProperty);
-					break;
-				case EManipulatorPropertyType::MT_ENUM:
-					//Handle Enum Change
-					EnumValue = CalculateEnumPropertyInputDelta(ManipulatorComponent, LocalTM, EnumValue);
-					SetPropertyValueByName<uint8>(ObjectToEditProperties, EditedPropertyName, EditedPropertyIndex, EnumValue, SetProperty);
-					break;
-				}
-
-				KeyProperty(ObjectToEditProperties, SetProperty);
-
-				FPropertyChangedEvent PropertyChangeEvent(SetProperty);
-				ObjectToEditProperties->PostEditChangeProperty(PropertyChangeEvent);
-				return true;
 			}
 		}
+	}
+	if (SelectedManipulators.Num() > 0)
+	{
+		return true;
 	}
 
 	FEdMode::InputDelta(InViewportClient, InViewport, InDrag, InRot, InScale);
@@ -523,30 +393,31 @@ bool FManipulatorToolsEditorEdMode::GetCustomDrawingCoordinateSystem(FMatrix& In
 	// Mostly copied code from EdMode to make Transforms correctly display their custom axis information when editing.
 	UManipulatorComponent* ManipulatorComponent = NewObject<UManipulatorComponent>();
 	FTransform WidgetTransform = FTransform::Identity;
-	if (GetSelectedManipulatorComponent(ManipulatorComponent, WidgetTransform))
+	if (SelectedManipulators.Num() > 0)
 	{
-		WidgetTransform = GetManipulatorTransformWithOffsets(ManipulatorComponent);
-		FTransform DisplayWidgetToWorld;
-		FTransform LocalTM;
-		UObject* BestSelectedItem = GetObjectToDisplayWidgetsFor(DisplayWidgetToWorld, ManipulatorComponent);
-		if (BestSelectedItem && EditedPropertyName != TEXT(""))
+		if (GetSelectedManipulatorComponent(SelectedManipulators.Last(), ManipulatorComponent, WidgetTransform))
 		{
-			switch (ManipulatorComponent->Settings.Property.Type)
+			WidgetTransform = GetManipulatorTransformWithOffsets(ManipulatorComponent);
+			FTransform DisplayWidgetToWorld;
+			FTransform LocalTM;
+			UObject* BestSelectedItem = GetObjectToDisplayWidgetsFromManipulator(DisplayWidgetToWorld, ManipulatorComponent);
+			if (BestSelectedItem && ManipulatorComponent->Settings.Property.NameToEdit != TEXT(""))
 			{
-			case EManipulatorPropertyType::MT_TRANSFORM:
-
-				//LocalTM = GetPropertyValueByName<FTransform>(BestSelectedItem, EditedPropertyName, EditedPropertyIndex);
-				InMatrix = FRotationMatrix::Make((WidgetTransform).GetRotation());
-				return true;
-				break;
-			case EManipulatorPropertyType::MT_VECTOR:
-				InMatrix = FRotationMatrix::Make(WidgetTransform.GetRotation());
-				return true;
-				break;
-			case EManipulatorPropertyType::MT_ENUM:
-				InMatrix = FRotationMatrix::Make(WidgetTransform.GetRotation());
-				return true;
-				break;
+				switch (ManipulatorComponent->Settings.Property.Type)
+				{
+				case EManipulatorPropertyType::MT_TRANSFORM:
+					InMatrix = FRotationMatrix::Make((WidgetTransform).GetRotation());
+					return true;
+					break;
+				case EManipulatorPropertyType::MT_VECTOR:
+					InMatrix = FRotationMatrix::Make(WidgetTransform.GetRotation());
+					return true;
+					break;
+				case EManipulatorPropertyType::MT_ENUM:
+					InMatrix = FRotationMatrix::Make(WidgetTransform.GetRotation());
+					return true;
+					break;
+				}
 			}
 		}
 	}
@@ -557,115 +428,170 @@ void FManipulatorToolsEditorEdMode::ActorSelectionChangeNotify()
 {
 }
 
-uint8 FManipulatorToolsEditorEdMode::CalculateEnumPropertyInputDelta(UManipulatorComponent* ManipulatorComponent, FTransform LocalTM, uint8 EnumInput)
+bool FManipulatorToolsEditorEdMode::UsesToolkits() const
 {
-	//Use the direction vector * Step to calulate the offset position of the current enum.
-	FManipulatorSettingsMainPropertyTypeEnum EnumSettings = ManipulatorComponent->Settings.Property.EnumSettings;
-	float AxisCheck = 0;
-	float EnumAsFloat = EnumInput;
-	switch (ManipulatorComponent->Settings.Property.EnumSettings.Direction)
-	{
-	case EManipulatorPropertyEnumDirection::MT_X:
-		AxisCheck = LocalTM.GetLocation().X;
-		break;
-	case EManipulatorPropertyEnumDirection::MT_Y:
-		AxisCheck = LocalTM.GetLocation().Y;
-		break;
-	case EManipulatorPropertyEnumDirection::MT_Z:
-		AxisCheck = LocalTM.GetLocation().Z;
-		break;
-	}
-
-	//add and clamp output.
-	EnumAsFloat = EnumAsFloat + (FMath::GridSnap(AxisCheck, EnumSettings.StepSize) / EnumSettings.StepSize);
-	if (EnumAsFloat > EnumSettings.EnumSize - 1)
-	{
-		EnumAsFloat = EnumSettings.EnumSize - 1;
-	}
-	else if (EnumAsFloat < 0)
-	{
-		EnumAsFloat = 0;
-	}
-	return uint8(EnumAsFloat);
+	return true;
 }
 
-bool FManipulatorToolsEditorEdMode::GetBoolPropertyValue(UManipulatorComponent* ManipulatorComponent)
+void FManipulatorToolsEditorEdMode::Tick(FEditorViewportClient * ViewportClient, float DeltaTime)
 {
-	// Used to tell bools when to change color.
-	bool Output = false;
-	if (ManipulatorComponent->Settings.Property.Type == EManipulatorPropertyType::MT_BOOL)
+	FEdMode::Tick(ViewportClient, DeltaTime);
+}
+
+bool FManipulatorToolsEditorEdMode::Select(AActor * InActor, bool bInSelected)
+{
+	return GetIsActorSelectionLocked();
+}
+
+/* ---------- Public Sequencer ----------*/
+
+void FManipulatorToolsEditorEdMode::SetSequencer(TWeakPtr<ISequencer> InSequencer)
+{
+	WeakSequencer = InSequencer;
+	if (UsesToolkits())
 	{
-		FTransform WidgetTransform;
-		UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFor(WidgetTransform, ManipulatorComponent);
-		if (ObjectToEditProperties != nullptr)
+		// TODO: Reference ControlRigEditMode for this. Getting this setup may be a more correct way of doing auto key.
+		//StaticCastSharedPtr<SControlRigEditModeTools>(Toolkit->GetInlineContent())->SetSequencer(InSequencer);
+	}
+}
+
+void FManipulatorToolsEditorEdMode::OnSequencerTrackSelectionChanged(TArray<UMovieSceneTrack*> InTracks)
+{
+	UE_LOG(LogTemp, Warning, TEXT("TrackSelectionChanged"));
+	if (WeakSequencer != nullptr)
+	{
+		TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+		UMovieSceneSequence* sequenceScene = Sequencer->GetFocusedMovieSceneSequence();
+		UMovieScene* scene = sequenceScene->GetMovieScene();
+		//auto bindings = scene->GetBindings();
+
+		/*
+		if (InTracks.Num() > 0)
 		{
-			Output = GetPropertyValueByName<bool>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index);
+			for (HManipulatorProxy* HitProxy : HitProxies)
+			{
+				if (HitProxy != nullptr && HitProxy->ManipulatorComponent != nullptr)
+				{
+					if (HitProxy->ManipulatorComponent->Settings.Property.NameToEdit == InTracks[0]->GetTrackName().ToString())
+					{
+						SelectManipulators(HitProxy);
+					}
+					else
+					{
+						ClearManipulatorSelection();
+					}
+				}
+			}
+			//UE_LOG(LogTemp, Warning, TEXT("Track Name %s"), *InTracks[0]->GetTrackName().ToString());
+			//InTracks[0].
+		*/
+		
+
+		//AActor* SelectedActor = GetFirstSelectedActorInstance();
+		/*
+		for (auto binding : bindings)
+		{
+			FTransform WidgetTransform = FTransform::Identity;
+			UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(WidgetTransform, ManipulatorComponent);
+			if (ObjectToEditProperties != nullptr && ObjectToEditProperties->GetName().Contains(binding.GetName()))
+			{
+			}
+		}
+		*/
+	}
+}
+
+/* ---------- Private Sequencer ----------*/
+
+void FManipulatorToolsEditorEdMode::SequencerKeyProperty(UObject* ObjectToKey, UProperty* propertyToUse)
+{
+	if (WeakSequencer != nullptr)
+	{
+		TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+
+		auto AutoKeyMode = Sequencer->GetAutoChangeMode();
+
+		if (AutoKeyMode != EAutoChangeMode::None)
+		{
+			TArray<UObject*> ObjectsToKey;
+			ObjectsToKey.Add(ObjectToKey);
+
+			FPropertyPath PropertyPath;
+			PropertyPath.AddProperty(FPropertyInfo(propertyToUse));
+
+			// May change ManualKeyForced to ManualKey.
+			FKeyPropertyParams KeyPropertyParams(ObjectsToKey, PropertyPath, ESequencerKeyMode::AutoKey);
+			Sequencer->KeyProperty(KeyPropertyParams);
 		}
 	}
-	return Output;
 }
 
-void FManipulatorToolsEditorEdMode::ToggleBoolPropertyValue(UManipulatorComponent* ManipulatorComponent)
+void FManipulatorToolsEditorEdMode::SequencerHandleTrackSelection(const EManipulatorPropertyType& PropertyType, const FName& PropertyName, UManipulatorComponent* ManipulatorComponent)
 {
-	// Toggles a bool on and off when clicked. 
-	if (ManipulatorComponent->Settings.Property.Type == EManipulatorPropertyType::MT_BOOL)
+	// Handle updating the selected track when selecting a manipulator.
+	if (WeakSequencer != nullptr)
 	{
-		bool CurrentBool = false;
-		FTransform WidgetTransform;
-		UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFor(WidgetTransform, ManipulatorComponent);
-		if (ObjectToEditProperties != nullptr)
+		TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+		UMovieSceneSequence* sequenceScene = Sequencer->GetFocusedMovieSceneSequence();
+		UMovieScene* scene = sequenceScene->GetMovieScene();
+		auto bindings = scene->GetBindings();
+		AActor* SelectedActor = ManipulatorComponent->GetOwner();
+		for (auto binding : bindings)
 		{
-			CurrentBool = GetPropertyValueByName<bool>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index);
-
-			// Set Bool Value
-			ObjectToEditProperties->PreEditChange(NULL);
-			UProperty* SetProperty = NULL;
-			SetPropertyValueByName<bool>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index, !CurrentBool, SetProperty);
-
-			KeyProperty(ObjectToEditProperties, SetProperty);
-
-			FPropertyChangedEvent PropertyChangeEvent(SetProperty);
-			ObjectToEditProperties->PostEditChangeProperty(PropertyChangeEvent);
+			FTransform WidgetTransform = FTransform::Identity;
+			UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(WidgetTransform, ManipulatorComponent);
+			if (ObjectToEditProperties != nullptr && ObjectToEditProperties->GetName().Contains(binding.GetName()))
+			{
+				TArray<FString> PropertyNames;
+				PropertyNames.Add(PropertyName.ToString());
+				WeakSequencer.Pin()->SelectByPropertyPaths(PropertyNames);
+			}
 		}
 	}
 }
 
-FTransform FManipulatorToolsEditorEdMode::FlipTransformOnX(FTransform Transform, bool FlipXVector, bool FlipYRotation, bool FlipXScale) const
+/* ---------- Public Actor Selection ----------*/
+
+void FManipulatorToolsEditorEdMode::UpdateIsActorSelectionLocked(bool bNewIsActorSelectionLocked)
 {
+	bIsActorSelectionLocked = bNewIsActorSelectionLocked;
+}
 
-	
-	// Flip Yaw Of Rotation
-	if (FlipYRotation)
+bool FManipulatorToolsEditorEdMode::GetIsActorSelectionLocked() const
+{
+	return bIsActorSelectionLocked;
+}
+
+/* ---------- Private Manipulator Components ----------*/
+
+bool FManipulatorToolsEditorEdMode::GetSelectedManipulatorComponent(FManipulatorData* ManipulatorData, UManipulatorComponent*& OutComponent, FTransform& OutWidgetTransform) const
+{
+	// Finds the first actor then walks through the components to find the currently selected component based off of component name and property to edit. 
+	// Outputs false if at any point any of the out information is null or fails.
+	// TODO: Update for Multi-select
+	TArray<AActor*> SelectedActors;
+	GEditor->GetSelectedActors()->GetSelectedObjects(SelectedActors);
+	for (AActor* SelectedActor : SelectedActors)
 	{
-		//FRotator Rotator = Transform.GetRotation().Rotator();
-		FQuat Rotation = Transform.GetRotation();
-		FVector ForwardVector = Rotation.GetForwardVector();
-		ForwardVector = ForwardVector * FVector(1,1,-1);
-		ForwardVector.Normalize();
-
-		FVector RightVector = Rotation.GetRightVector();
-		RightVector.Normalize();
-		FVector UpVector = Rotation.GetUpVector();
-		UpVector.Normalize();
-
-		FMatrix RotMatrix(ForwardVector, RightVector, UpVector, FVector::ZeroVector);
-		Transform.SetRotation(RotMatrix.Rotator().Quaternion());
+		if (SelectedActor != nullptr)
+		{
+			TArray<UActorComponent*> Manipulators = SelectedActor->GetComponentsByClass(UManipulatorComponent::StaticClass());
+			for (UActorComponent* ActorComponent : Manipulators)
+			{
+				UManipulatorComponent* ManipulatorComponent = Cast<UManipulatorComponent>(ActorComponent);
+				if (ManipulatorComponent != nullptr)
+				{
+					if (ManipulatorComponent->GetManipulatorID() == ManipulatorData->ID)
+					{
+						OutComponent = ManipulatorComponent;
+						OutWidgetTransform = ManipulatorComponent->GetComponentToWorld();
+						return true;
+					}
+				}
+			}
+		}
 	}
-
-	Transform.NormalizeRotation();
-	// Flip Location
-	if (FlipXVector)
-	{
-		Transform.SetLocation(Transform.GetLocation()*FVector(-1, 1, 1));
-	}
-
-	// Flip Scale
-	if (FlipXScale)
-	{
-		Transform.SetScale3D(Transform.GetScale3D() * FVector(-1, 1, 1));
-	}
-
-	return Transform;
+	return false;
 }
 
 FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UManipulatorComponent * ManipulatorComponent) const
@@ -677,7 +603,7 @@ FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UMa
 	// Visual Offset and Relative Offset
 	FTransform RelativeTransform = FTransform::Identity;
 	FTransform WidgetTransform = FTransform::Identity;
-	UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFor(WidgetTransform, ManipulatorComponent);
+	UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(WidgetTransform, ManipulatorComponent);
 
 	// Handle offsets per property type bools are ignored in here because they are essentially world buttons.
 	switch (ManipulatorComponent->Settings.Property.Type)
@@ -733,7 +659,58 @@ FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UMa
 	return WidgetTransform;
 }
 
-UObject * FManipulatorToolsEditorEdMode::GetObjectToDisplayWidgetsFor(FTransform & OutLocalToWorld, UManipulatorComponent* ManipulatorComponent) const
+UManipulatorComponent * FManipulatorToolsEditorEdMode::FindManipulatorComponentInActor(FString PropertyName, FString ActorName)
+{
+	return nullptr;
+}
+
+void FManipulatorToolsEditorEdMode::AddNewSelectedManipulator(FManipulatorData * ManipulatorData)
+{
+
+}
+
+bool FManipulatorToolsEditorEdMode::GetBoolPropertyValueFromManipulator(UManipulatorComponent* ManipulatorComponent)
+{
+	// Used to tell bools when to change color.
+	bool Output = false;
+	if (ManipulatorComponent->Settings.Property.Type == EManipulatorPropertyType::MT_BOOL)
+	{
+		FTransform WidgetTransform;
+		UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(WidgetTransform, ManipulatorComponent);
+		if (ObjectToEditProperties != nullptr)
+		{
+			Output = GetPropertyValueByName<bool>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index);
+		}
+	}
+	return Output;
+}
+
+void FManipulatorToolsEditorEdMode::ToggleBoolPropertyValueFromManipulator(UManipulatorComponent* ManipulatorComponent)
+{
+	// Toggles a bool on and off when clicked. 
+	if (ManipulatorComponent->Settings.Property.Type == EManipulatorPropertyType::MT_BOOL)
+	{
+		bool CurrentBool = false;
+		FTransform WidgetTransform;
+		UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(WidgetTransform, ManipulatorComponent);
+		if (ObjectToEditProperties != nullptr)
+		{
+			CurrentBool = GetPropertyValueByName<bool>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index);
+
+			// Set Bool Value
+			ObjectToEditProperties->PreEditChange(NULL);
+			UProperty* SetProperty = NULL;
+			SetPropertyValueByName<bool>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index, !CurrentBool, SetProperty);
+
+			SequencerKeyProperty(ObjectToEditProperties, SetProperty);
+
+			FPropertyChangedEvent PropertyChangeEvent(SetProperty);
+			ObjectToEditProperties->PostEditChangeProperty(PropertyChangeEvent);
+		}
+	}
+}
+
+UObject * FManipulatorToolsEditorEdMode::GetObjectToDisplayWidgetsFromManipulator(FTransform & OutLocalToWorld, UManipulatorComponent* ManipulatorComponent) const
 {
 	// Determine what is selected, preferring a component over an actor
 	USceneComponent* SelectedComponent = ManipulatorComponent->GetOwner()->GetRootComponent();
@@ -742,161 +719,176 @@ UObject * FManipulatorToolsEditorEdMode::GetObjectToDisplayWidgetsFor(FTransform
 	return BestSelectedItem; 
 }
 
-bool FManipulatorToolsEditorEdMode::GetSelectedManipulatorComponent( UManipulatorComponent*& OutComponent, FTransform& OutWidgetTransform) const
+uint8 FManipulatorToolsEditorEdMode::HandleEnumPropertyInputDelta(UManipulatorComponent* ManipulatorComponent, FTransform LocalTM, uint8 EnumInput)
 {
-	// Finds the first actor then walks through the components to find the currently selected component based off of component name and property to edit. 
-	// Outputs false if at any point any of the out information is null or fails.
-	TArray<AActor*> SelectedActors;
-	GEditor->GetSelectedActors()->GetSelectedObjects(SelectedActors);
-	for (AActor* SelectedActor : SelectedActors)
+	//Use the direction vector * Step to calulate the offset position of the current enum.
+	FManipulatorSettingsMainPropertyTypeEnum EnumSettings = ManipulatorComponent->Settings.Property.EnumSettings;
+	float AxisCheck = 0;
+	float EnumAsFloat = EnumInput;
+	switch (ManipulatorComponent->Settings.Property.EnumSettings.Direction)
 	{
-		if (SelectedActor != nullptr && SelectedActor->GetName() == EditedActorName)
+	case EManipulatorPropertyEnumDirection::MT_X:
+		AxisCheck = LocalTM.GetLocation().X;
+		break;
+	case EManipulatorPropertyEnumDirection::MT_Y:
+		AxisCheck = LocalTM.GetLocation().Y;
+		break;
+	case EManipulatorPropertyEnumDirection::MT_Z:
+		AxisCheck = LocalTM.GetLocation().Z;
+		break;
+	}
+
+	//add and clamp output.
+	EnumAsFloat = EnumAsFloat + (FMath::GridSnap(AxisCheck, EnumSettings.StepSize) / EnumSettings.StepSize);
+	if (EnumAsFloat > EnumSettings.EnumSize - 1)
+	{
+		EnumAsFloat = EnumSettings.EnumSize - 1;
+	}
+	else if (EnumAsFloat < 0)
+	{
+		EnumAsFloat = 0;
+	}
+	return uint8(EnumAsFloat);
+}
+
+/* ---------- Private Transform Manipulation ----------*/
+
+FTransform FManipulatorToolsEditorEdMode::HandleFinalShapeTransforms(FTransform ShapeTransform, FTransform OverallScale, FTransform WidgetTransform, bool RotateScale)
+{
+	if (RotateScale)
+	{
+		WidgetTransform.SetScale3D(ShapeTransform.GetRotation().Inverse().RotateVector(WidgetTransform.GetScale3D()));
+	}
+	return ShapeTransform * OverallScale * WidgetTransform;
+}
+
+FTransform FManipulatorToolsEditorEdMode::FlipTransformOnX(FTransform Transform, bool FlipXVector, bool FlipYRotation, bool FlipXScale) const
+{
+	// Flip Yaw Of Rotation
+	if (FlipYRotation)
+	{
+		//FRotator Rotator = Transform.GetRotation().Rotator();
+		FQuat Rotation = Transform.GetRotation();
+		FVector ForwardVector = Rotation.GetForwardVector();
+		ForwardVector = ForwardVector * FVector(1,1,-1);
+		ForwardVector.Normalize();
+
+		FVector RightVector = Rotation.GetRightVector();
+		RightVector.Normalize();
+		FVector UpVector = Rotation.GetUpVector();
+		UpVector.Normalize();
+
+		FMatrix RotMatrix(ForwardVector, RightVector, UpVector, FVector::ZeroVector);
+		Transform.SetRotation(RotMatrix.Rotator().Quaternion());
+	}
+
+	Transform.NormalizeRotation();
+	// Flip Location
+	if (FlipXVector)
+	{
+		Transform.SetLocation(Transform.GetLocation()*FVector(-1, 1, 1));
+	}
+
+	// Flip Scale
+	if (FlipXScale)
+	{
+		Transform.SetScale3D(Transform.GetScale3D() * FVector(-1, 1, 1));
+	}
+
+	return Transform;
+}
+
+void FManipulatorToolsEditorEdMode::AddNewSelectedManipulator(UManipulatorComponent* ManipulatorComponent)
+{
+	if (ManipulatorComponent != nullptr)
+	{
+		if (!IsManipulatorSelected(ManipulatorComponent))
 		{
-			TArray<UActorComponent*> Manipulators = SelectedActor->GetComponentsByClass(UManipulatorComponent::StaticClass());
-			for (UActorComponent* ActorComponent : Manipulators)
+			FManipulatorData* NewData = new FManipulatorData();
+			NewData->ID = ManipulatorComponent->GetManipulatorID();
+			NewData->ActorName = ManipulatorComponent->GetOwner()->GetName();
+			NewData->ComponentName = ManipulatorComponent->GetName();
+			NewData->PropertyName = ManipulatorComponent->Settings.Property.NameToEdit;
+			NewData->PropertyIndex = ManipulatorComponent->Settings.Property.Index;
+			NewData->PropertyType = ManipulatorComponent->Settings.Property.Type;
+			SelectedManipulators.Add(NewData);
+		}
+	}
+}
+
+void FManipulatorToolsEditorEdMode::ToggleSelectedManipulator(UManipulatorComponent * ManipulatorComponent)
+{
+	if (ManipulatorComponent != nullptr)
+	{
+		if (IsManipulatorSelected(ManipulatorComponent))
+		{
+			RemoveSelectedManipulator(ManipulatorComponent);
+		}
+		else
+		{
+			AddNewSelectedManipulator(ManipulatorComponent);
+		}
+	}
+
+}
+
+void FManipulatorToolsEditorEdMode::RemoveSelectedManipulator(UManipulatorComponent * ManipulatorComponent)
+{
+	if (ManipulatorComponent != nullptr && IsManipulatorSelected(ManipulatorComponent))
+	{
+		for (int32 i = 0; i < SelectedManipulators.Num(); i++)
+		{
+			if (SelectedManipulators.IsValidIndex(i))
 			{
-				UManipulatorComponent* ManipulatorComponent = Cast<UManipulatorComponent>(ActorComponent);
-				if (ManipulatorComponent != nullptr)
+				if (SelectedManipulators[i]->ID == ManipulatorComponent->GetManipulatorID())
 				{
-					if (ManipulatorComponent->Settings.Property.NameToEdit == EditedPropertyName && ManipulatorComponent->GetName() == EditedComponentName)
-					{
-						OutComponent = ManipulatorComponent;
-						OutWidgetTransform = ManipulatorComponent->GetComponentToWorld();
-						return true;
-					}
+					SelectedManipulators.RemoveAt(i);
+					return;
 				}
+			}
+		}
+	}
+}
+
+bool FManipulatorToolsEditorEdMode::IsManipulatorSelected(UManipulatorComponent * ManipulatorComponent)
+{
+	// Check if Manipulator ID already exists
+	if (ManipulatorComponent != nullptr)
+	{
+		for (FManipulatorData* SelectedManipulator : SelectedManipulators)
+		{
+			if (SelectedManipulator->ID == ManipulatorComponent->GetManipulatorID())
+			{
+				return true;
 			}
 		}
 	}
 	return false;
 }
 
-bool FManipulatorToolsEditorEdMode::UsesToolkits() const
+FManipulatorData * FManipulatorToolsEditorEdMode::GetManipulatorData(UManipulatorComponent * ManipulatorComponent)
 {
-	return true;
-}
-
-void FManipulatorToolsEditorEdMode::KeyProperty(UObject* ObjectToKey, UProperty* propertyToUse)
-{
-	if (WeakSequencer != nullptr)
+	FManipulatorData* ManipulatorData = new FManipulatorData();
+	if (ManipulatorComponent != nullptr)
 	{
-		TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
-
-		auto AutoKeyMode = Sequencer->GetAutoChangeMode();
-
-		if (AutoKeyMode != EAutoChangeMode::None)
+		for (FManipulatorData* SelectedManipulator : SelectedManipulators)
 		{
-			TArray<UObject*> ObjectsToKey;
-			ObjectsToKey.Add(ObjectToKey);
-
-			FPropertyPath PropertyPath;
-			PropertyPath.AddProperty(FPropertyInfo(propertyToUse));
-
-			// May change ManualKeyForced to ManualKey.
-			FKeyPropertyParams KeyPropertyParams(ObjectsToKey, PropertyPath, ESequencerKeyMode::AutoKey);
-			Sequencer->KeyProperty(KeyPropertyParams);
-		}
-	}
-}
-
-
-
-void FManipulatorToolsEditorEdMode::HandleSequencerTrackSelection(const EManipulatorPropertyType& PropertyType, const FName& PropertyName, UManipulatorComponent* ManipulatorComponent)
-{		
-	// Handle updating the selected track when selecting a manipulator.
-	if (WeakSequencer != nullptr)
-	{
-		TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
-		UMovieSceneSequence* sequenceScene = Sequencer->GetFocusedMovieSceneSequence();
-		UMovieScene* scene = sequenceScene->GetMovieScene();
-		auto bindings = scene->GetBindings();
-		AActor* SelectedActor = ManipulatorComponent->GetOwner();
-		for (auto binding : bindings)
-		{
-			FTransform WidgetTransform = FTransform::Identity;
-			UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFor(WidgetTransform, ManipulatorComponent);
-			if (ObjectToEditProperties != nullptr && ObjectToEditProperties->GetName().Contains(binding.GetName()))
+			if (SelectedManipulator->ID == ManipulatorComponent->GetManipulatorID())
 			{
-				TArray<FString> PropertyNames;
-				PropertyNames.Add(PropertyName.ToString());
-				WeakSequencer.Pin()->SelectByPropertyPaths(PropertyNames);
+				return SelectedManipulator;
 			}
 		}
 	}
+	return ManipulatorData;
 }
 
-void FManipulatorToolsEditorEdMode::Tick(FEditorViewportClient * ViewportClient, float DeltaTime)
+void FManipulatorToolsEditorEdMode::ClearManipulatorSelection()
 {
-	FEdMode::Tick(ViewportClient, DeltaTime);
+	SelectedManipulators.Empty();
 }
 
-void FManipulatorToolsEditorEdMode::UpdatedIsSelectionLocked(bool bNewIsSelectionLocked)
-{
-	bIsSelectionLocked = bNewIsSelectionLocked;
-}
 
-bool FManipulatorToolsEditorEdMode::GetIsSelectionLocked() const
-{
-	return bIsSelectionLocked;
-}
 
-bool FManipulatorToolsEditorEdMode::Select(AActor * InActor, bool bInSelected)
-{
-	return GetIsSelectionLocked();
-}
 
-void FManipulatorToolsEditorEdMode::SetSequencer(TWeakPtr<ISequencer> InSequencer)
-{
-	WeakSequencer = InSequencer;
-	if (UsesToolkits())
-	{
-		// TODO: Reference ControlRigEditMode for this. Getting this setup may be a more correct way of doing auto key.
-		//StaticCastSharedPtr<SControlRigEditModeTools>(Toolkit->GetInlineContent())->SetSequencer(InSequencer);
-	}
-}
 
-void FManipulatorToolsEditorEdMode::OnSequencerTrackSelectionChanged(TArray<UMovieSceneTrack*> InTracks)
-{
-	UE_LOG(LogTemp, Warning, TEXT("TrackSelectionChanged"));
-	if (WeakSequencer != nullptr)
-	{
-		TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
-		UMovieSceneSequence* sequenceScene = Sequencer->GetFocusedMovieSceneSequence();
-		UMovieScene* scene = sequenceScene->GetMovieScene();
-		//auto bindings = scene->GetBindings();
 
-		/*
-		if (InTracks.Num() > 0)
-		{
-			for (HManipulatorProxy* HitProxy : HitProxies)
-			{
-				if (HitProxy != nullptr && HitProxy->ManipulatorComponent != nullptr)
-				{
-					if (HitProxy->ManipulatorComponent->Settings.Property.NameToEdit == InTracks[0]->GetTrackName().ToString())
-					{
-						SelectManipulators(HitProxy);
-					}
-					else
-					{
-						ClearManipulatorSelection();
-					}
-				}
-			}
-			//UE_LOG(LogTemp, Warning, TEXT("Track Name %s"), *InTracks[0]->GetTrackName().ToString());
-			//InTracks[0].
-		}
-		*/
-
-		//AActor* SelectedActor = GetFirstSelectedActorInstance();
-		/*
-		for (auto binding : bindings)
-		{
-			FTransform WidgetTransform = FTransform::Identity;
-			UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFor(WidgetTransform, ManipulatorComponent);
-			if (ObjectToEditProperties != nullptr && ObjectToEditProperties->GetName().Contains(binding.GetName()))
-			{
-			}
-		}
-		*/
-	}
-}

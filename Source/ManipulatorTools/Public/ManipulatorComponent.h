@@ -347,7 +347,11 @@ public:
 	UFUNCTION(BlueprintCallable)
 	FTransform CombineOffsetTransforms(TArray<FTransform> Offsets);
 
-	// ================= WIRE BOX ===================
+	UFUNCTION(BlueprintCallable)
+	FString GetManipulatorID();
+
+
+	// ========= WIRE BOX =========
 
 	// Gets all shapes of wire box.
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "ManipulatorTools|Shapes")
@@ -360,7 +364,7 @@ public:
 	void SetShapeOfTypeWireBox(int32 Index, FManipulatorSettingsMainDrawWireBox WireBox);
 
 
-	// ================= WIRE DIAMOND ===================
+	// ========= WIRE DIAMOND =========
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "ManipulatorTools|Shapes")
 	TArray<FManipulatorSettingsMainDrawWireDiamond> GetAllShapesOfTypeWireDiamond();
@@ -372,7 +376,7 @@ public:
 	void SetShapeOfTypeWireDiamond(int32 Index, FManipulatorSettingsMainDrawWireDiamond WireDiamond);
 
 
-	// ================= CIRCLES ===================
+	// ========= CIRCLES =========
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "ManipulatorTools|Shapes")
 	TArray<FManipulatorSettingsMainDrawCircle> GetAllShapesOfTypeWireCircle();
@@ -384,7 +388,7 @@ public:
 	void SetShapeOfTypeWireCircle(int32 Index, FManipulatorSettingsMainDrawCircle Circle);
 
 
-	// ================= PLANES ===================
+	// ========= PLANES =========
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "ManipulatorTools|Shapes")
 	TArray<FManipulatorSettingsMainDrawPlane> GetAllShapesOfTypePlane();

@@ -79,7 +79,15 @@ FTransform UManipulatorComponent::CombineOffsetTransforms(TArray<FTransform> Off
 	return FinalOffset;
 }
 
-// ================= WIRE BOX ===================
+FString UManipulatorComponent::GetManipulatorID()
+{
+	FString ManipulatorID;
+	ManipulatorID = this->GetOwner()->GetName() + "_" + this->GetName() + "_" + Settings.Property.NameToEdit + "_" + FString::FromInt(Settings.Property.Index);
+	return ManipulatorID;
+}
+
+// ========= WIRE BOX =========
+
 TArray<FManipulatorSettingsMainDrawWireBox> UManipulatorComponent::GetAllShapesOfTypeWireBox()
 {
 	TArray<FManipulatorSettingsMainDrawWireBox> WireBoxes = Settings.Draw.Shapes.WireBoxes;
@@ -115,7 +123,9 @@ void UManipulatorComponent::SetShapeOfTypeWireBox(int32 Index, FManipulatorSetti
 {
 	SetArrayElement(WireBox, Settings.Draw.Shapes.WireBoxes, Index);
 }
-// ================= WIRE DIAMOND ===================
+
+// ========= WIRE DIAMOND =========
+
 TArray<FManipulatorSettingsMainDrawWireDiamond> UManipulatorComponent::GetAllShapesOfTypeWireDiamond()
 {
 	return Settings.Draw.Shapes.WireDiamonds;
@@ -139,7 +149,9 @@ void UManipulatorComponent::SetShapeOfTypeWireDiamond(int32 Index, FManipulatorS
 {
 	SetArrayElement(WireDiamond, Settings.Draw.Shapes.WireDiamonds, Index);
 }
-// ================= CIRCLES ===================
+
+// ========= CIRCLES =========
+
 TArray<FManipulatorSettingsMainDrawCircle> UManipulatorComponent::GetAllShapesOfTypeWireCircle()
 {
 	return Settings.Draw.Shapes.WireCircles;
@@ -164,7 +176,8 @@ void UManipulatorComponent::SetShapeOfTypeWireCircle(int32 Index, FManipulatorSe
 	SetArrayElement(WireCircle, Settings.Draw.Shapes.WireCircles, Index);
 }
 
-// ================= PLANES ===================
+// ========= PLANES =========
+
 TArray<FManipulatorSettingsMainDrawPlane> UManipulatorComponent::GetAllShapesOfTypePlane()
 {
 	return Settings.Draw.Shapes.Planes;
