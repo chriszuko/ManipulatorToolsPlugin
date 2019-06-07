@@ -237,6 +237,7 @@ bool FManipulatorToolsEditorEdMode::HandleClick(FEditorViewportClient * InViewpo
 				AddNewSelectedManipulator(PropertyProxy->ManipulatorComponent);
 			}
 			
+			
 			EManipulatorPropertyType PropertyType = PropertyProxy->ManipulatorComponent->Settings.Property.Type;
 			//TODO: Multi-Select
 			SequencerHandleTrackSelection(PropertyType, FName(*PropertyProxy->ManipulatorComponent->Settings.Property.NameToEdit), PropertyProxy->ManipulatorComponent);
@@ -276,6 +277,7 @@ FVector FManipulatorToolsEditorEdMode::GetWidgetLocation() const
 
 bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewportClient, FViewport* InViewport, FVector & InDrag, FRotator & InRot, FVector & InScale)
 {
+
 	// The input delta is what tells the widget how much to adjust its value by based on user input. 
 	UManipulatorComponent* ManipulatorComponent;
 	FTransform WidgetTransform = FTransform::Identity;
@@ -370,13 +372,13 @@ bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewport
 
 					FPropertyChangedEvent PropertyChangeEvent(SetProperty);
 					ObjectToEditProperties->PostEditChangeProperty(PropertyChangeEvent);
+					if (ManipulatorData == SelectedManipulators.Last())
+					{
+						return true;
+					}
 				}
 			}
 		}
-	}
-	if (SelectedManipulators.Num() > 0)
-	{
-		return true;
 	}
 
 	FEdMode::InputDelta(InViewportClient, InViewport, InDrag, InRot, InScale);
@@ -885,6 +887,7 @@ FManipulatorData * FManipulatorToolsEditorEdMode::GetManipulatorData(UManipulato
 void FManipulatorToolsEditorEdMode::ClearManipulatorSelection()
 {
 	SelectedManipulators.Empty();
+	bEditedPropertyIsTransform = false;
 }
 
 
