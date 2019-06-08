@@ -55,6 +55,7 @@ void FManipulatorToolsEditorEdMode::Exit()
 {
 	if (Toolkit.IsValid())
 	{
+		ClearManipulatorSelection();
 		FToolkitManager::Get().CloseToolkit(Toolkit.ToSharedRef());
 		Toolkit.Reset();
 
