@@ -15,7 +15,9 @@ struct FManipulatorData
 	int PropertyIndex = INDEX_NONE;
 	FString ComponentName = FString();
 	FString ActorName = FString();
+	FString ActorSequencerName = FString();
 	EManipulatorPropertyType PropertyType = EManipulatorPropertyType::MT_BOOL;
+	uint32 ActorUniqueID;
 };
 
 /** Hit proxy used for editable properties */
@@ -201,13 +203,13 @@ private:
 	/** Data */
 	bool bIsActorSelectionLocked = false;
 	TArray<FManipulatorData*> SelectedManipulators;
+	TArray<FManipulatorData*> NewSelectedManipulators;
 	//TArray<FString> SelectedManipulators;
 
 	/** ManipulatorComponents */
 	virtual bool GetSelectedManipulatorComponent(FManipulatorData* ManipulatorData, UManipulatorComponent*& OutComponent, FTransform& OutWidgetTransform) const;
 	FTransform GetManipulatorTransformWithOffsets(UManipulatorComponent* ManipulatorComponent) const;
 	UManipulatorComponent* FindManipulatorComponentInActor(FString PropertyName, FString ActorName);
-	void AddNewSelectedManipulator(FManipulatorData* ManipulatorData);
 	bool GetBoolPropertyValueFromManipulator(UManipulatorComponent* ManipulatorComponent);
 	void ToggleBoolPropertyValueFromManipulator(UManipulatorComponent* ManipulatorComponent);
 	UObject* GetObjectToDisplayWidgetsFromManipulator(FTransform& OutLocalToWorld, UManipulatorComponent* ManipulatorComponent) const;
@@ -223,12 +225,14 @@ private:
 	void ToggleSelectedManipulator(UManipulatorComponent* ManipulatorComponent);
 	void RemoveSelectedManipulator(UManipulatorComponent* ManipulatorComponent);
 	bool IsManipulatorSelected(UManipulatorComponent* ManipulatorComponent);
+	void FindAndAddNewManipulatorSelection(FString PropertyName, FString ActorSequencerName);
 
 	FManipulatorData* GetManipulatorData(UManipulatorComponent* ManipulatorComponent);
 	void ClearManipulatorSelection();
 
 	/** Weak pointer to the last sequencer that was opened */
 	TWeakPtr<ISequencer> WeakSequencer;
-	void SequencerHandleTrackSelection(const EManipulatorPropertyType& PropertyType, const FName& PropertyName, UManipulatorComponent* ManipulatorComponent);
+	void SequencerUpdateTrackSelection();
+	bool AllowTrackSelectionUpdate = false;
 	void SequencerKeyProperty(UObject* ObjectToKey, UProperty* propertyToUse);
 };

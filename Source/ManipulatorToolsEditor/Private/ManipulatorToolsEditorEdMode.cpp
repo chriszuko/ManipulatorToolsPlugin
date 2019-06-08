@@ -15,6 +15,7 @@
 #include "MovieSceneVectorTrack.h"
 #include "MovieSceneByteTrack.h"
 #include "MovieSceneBoolTrack.h"
+#include "MovieScenePropertyTrack.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "LevelEditorViewport.h"
@@ -71,7 +72,11 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 	{
 		return;
 	}
+	// Update Sequencer Tracks
+	SelectedManipulators = NewSelectedManipulators;
+	SequencerUpdateTrackSelection();
 
+	// Update Visuals
 	TArray<AActor*> SelectedActors;
 	GEditor->GetSelectedActors()->GetSelectedObjects(SelectedActors);
 	for(AActor* SelectedActor : SelectedActors)
@@ -236,11 +241,7 @@ bool FManipulatorToolsEditorEdMode::HandleClick(FEditorViewportClient * InViewpo
 				ClearManipulatorSelection();
 				AddNewSelectedManipulator(PropertyProxy->ManipulatorComponent);
 			}
-			
-			
-			EManipulatorPropertyType PropertyType = PropertyProxy->ManipulatorComponent->Settings.Property.Type;
-			//TODO: Multi-Select
-			SequencerHandleTrackSelection(PropertyType, FName(*PropertyProxy->ManipulatorComponent->Settings.Property.NameToEdit), PropertyProxy->ManipulatorComponent);
+			AllowTrackSelectionUpdate = true;
 		}
 		return true;
 	}
@@ -450,6 +451,7 @@ bool FManipulatorToolsEditorEdMode::Select(AActor * InActor, bool bInSelected)
 void FManipulatorToolsEditorEdMode::SetSequencer(TWeakPtr<ISequencer> InSequencer)
 {
 	WeakSequencer = InSequencer;
+	AllowTrackSelectionUpdate = true;
 	if (UsesToolkits())
 	{
 		// TODO: Reference ControlRigEditMode for this. Getting this setup may be a more correct way of doing auto key.
@@ -459,47 +461,44 @@ void FManipulatorToolsEditorEdMode::SetSequencer(TWeakPtr<ISequencer> InSequence
 
 void FManipulatorToolsEditorEdMode::OnSequencerTrackSelectionChanged(TArray<UMovieSceneTrack*> InTracks)
 {
-	UE_LOG(LogTemp, Warning, TEXT("TrackSelectionChanged"));
 	if (WeakSequencer != nullptr)
 	{
 		TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
-		UMovieSceneSequence* sequenceScene = Sequencer->GetFocusedMovieSceneSequence();
-		UMovieScene* scene = sequenceScene->GetMovieScene();
-		//auto bindings = scene->GetBindings();
+		UMovieSceneSequence* SequenceScene = Sequencer->GetFocusedMovieSceneSequence();
+		UMovieScene* Scene = SequenceScene->GetMovieScene();
+		auto Bindings = Scene->GetBindings();
 
-		/*
-		if (InTracks.Num() > 0)
+		bool ClearSelection = true;
+
+		for (UMovieSceneTrack* Track : InTracks)
 		{
-			for (HManipulatorProxy* HitProxy : HitProxies)
+			FString PropertyName = FString();
+			FString ActorSequencerName = FString();
+
+			UMovieScenePropertyTrack* PropertyTrack = Cast<UMovieScenePropertyTrack>(Track);
+			if (PropertyTrack != nullptr)
 			{
-				if (HitProxy != nullptr && HitProxy->ManipulatorComponent != nullptr)
+				PropertyName = PropertyTrack->GetPropertyPath();
+				FGuid MatchingGuid;
+				if (Scene->FindTrackBinding(*Track, MatchingGuid))
 				{
-					if (HitProxy->ManipulatorComponent->Settings.Property.NameToEdit == InTracks[0]->GetTrackName().ToString())
+					for (auto Binding : Bindings)
 					{
-						SelectManipulators(HitProxy);
-					}
-					else
-					{
-						ClearManipulatorSelection();
+						if (Binding.GetObjectGuid() == MatchingGuid)
+						{
+							if (ClearSelection)
+							{
+								ClearManipulatorSelection();
+								ClearSelection = false;
+							}
+							ActorSequencerName = Binding.GetName();
+							FindAndAddNewManipulatorSelection(PropertyName, ActorSequencerName);
+							continue;
+						}
 					}
 				}
 			}
-			//UE_LOG(LogTemp, Warning, TEXT("Track Name %s"), *InTracks[0]->GetTrackName().ToString());
-			//InTracks[0].
-		*/
-		
-
-		//AActor* SelectedActor = GetFirstSelectedActorInstance();
-		/*
-		for (auto binding : bindings)
-		{
-			FTransform WidgetTransform = FTransform::Identity;
-			UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(WidgetTransform, ManipulatorComponent);
-			if (ObjectToEditProperties != nullptr && ObjectToEditProperties->GetName().Contains(binding.GetName()))
-			{
-			}
 		}
-		*/
 	}
 }
 
@@ -528,25 +527,40 @@ void FManipulatorToolsEditorEdMode::SequencerKeyProperty(UObject* ObjectToKey, U
 	}
 }
 
-void FManipulatorToolsEditorEdMode::SequencerHandleTrackSelection(const EManipulatorPropertyType& PropertyType, const FName& PropertyName, UManipulatorComponent* ManipulatorComponent)
+void FManipulatorToolsEditorEdMode::SequencerUpdateTrackSelection()
 {
 	// Handle updating the selected track when selecting a manipulator.
-	if (WeakSequencer != nullptr)
+	if (WeakSequencer != nullptr && AllowTrackSelectionUpdate)
 	{
-		TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
-		UMovieSceneSequence* sequenceScene = Sequencer->GetFocusedMovieSceneSequence();
-		UMovieScene* scene = sequenceScene->GetMovieScene();
-		auto bindings = scene->GetBindings();
-		AActor* SelectedActor = ManipulatorComponent->GetOwner();
-		for (auto binding : bindings)
+		AllowTrackSelectionUpdate = false;
+		WeakSequencer.Pin()->EmptySelection();
+		for (FManipulatorData* ManipulatorData : SelectedManipulators)
 		{
-			FTransform WidgetTransform = FTransform::Identity;
-			UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(WidgetTransform, ManipulatorComponent);
-			if (ObjectToEditProperties != nullptr && ObjectToEditProperties->GetName().Contains(binding.GetName()))
+			TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+			UMovieSceneSequence* SequenceScene = Sequencer->GetFocusedMovieSceneSequence();
+			UMovieScene* Scene = SequenceScene->GetMovieScene();
+			auto Bindings = Scene->GetBindings();
+			for (auto Binding : Bindings)
 			{
-				TArray<FString> PropertyNames;
-				PropertyNames.Add(PropertyName.ToString());
-				WeakSequencer.Pin()->SelectByPropertyPaths(PropertyNames);
+
+				if (ManipulatorData->ActorSequencerName == Binding.GetName())
+				{
+					TArray<TSubclassOf<UMovieSceneTrack>> TrackClasses;
+					TrackClasses.Add(UMovieSceneBoolTrack::StaticClass());
+					TrackClasses.Add(UMovieSceneVectorTrack::StaticClass());
+					TrackClasses.Add(UMovieSceneTransformTrack::StaticClass());
+					TrackClasses.Add(UMovieSceneByteTrack::StaticClass());
+
+					for (TSubclassOf<UMovieSceneTrack> TrackClass : TrackClasses)
+					{
+						UMovieSceneTrack* Track = Scene->FindTrack(TrackClass, Binding.GetObjectGuid(), FName(*ManipulatorData->PropertyName));
+						if (Track != nullptr)
+						{
+							WeakSequencer.Pin()->SelectTrack(Track);
+							continue;
+						}
+					}
+				}
 			}
 		}
 	}
@@ -664,11 +678,6 @@ FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UMa
 UManipulatorComponent * FManipulatorToolsEditorEdMode::FindManipulatorComponentInActor(FString PropertyName, FString ActorName)
 {
 	return nullptr;
-}
-
-void FManipulatorToolsEditorEdMode::AddNewSelectedManipulator(FManipulatorData * ManipulatorData)
-{
-
 }
 
 bool FManipulatorToolsEditorEdMode::GetBoolPropertyValueFromManipulator(UManipulatorComponent* ManipulatorComponent)
@@ -802,18 +811,23 @@ FTransform FManipulatorToolsEditorEdMode::FlipTransformOnX(FTransform Transform,
 
 void FManipulatorToolsEditorEdMode::AddNewSelectedManipulator(UManipulatorComponent* ManipulatorComponent)
 {
-	if (ManipulatorComponent != nullptr)
+	if (ManipulatorComponent != nullptr && ManipulatorComponent->GetOwner() != nullptr)
 	{
 		if (!IsManipulatorSelected(ManipulatorComponent))
 		{
 			FManipulatorData* NewData = new FManipulatorData();
 			NewData->ID = ManipulatorComponent->GetManipulatorID();
-			NewData->ActorName = ManipulatorComponent->GetOwner()->GetName();
+			NewData->ActorName = ManipulatorComponent->GetName();
+			NewData->ActorSequencerName = ManipulatorComponent->GetOwner()->GetActorLabel();
 			NewData->ComponentName = ManipulatorComponent->GetName();
 			NewData->PropertyName = ManipulatorComponent->Settings.Property.NameToEdit;
 			NewData->PropertyIndex = ManipulatorComponent->Settings.Property.Index;
 			NewData->PropertyType = ManipulatorComponent->Settings.Property.Type;
-			SelectedManipulators.Add(NewData);
+			NewData->ActorUniqueID = ManipulatorComponent->GetOwner()->GetUniqueID();
+			if (NewData->PropertyType != EManipulatorPropertyType::MT_BOOL)
+			{
+				NewSelectedManipulators.Add(NewData);
+			}
 		}
 	}
 }
@@ -838,13 +852,13 @@ void FManipulatorToolsEditorEdMode::RemoveSelectedManipulator(UManipulatorCompon
 {
 	if (ManipulatorComponent != nullptr && IsManipulatorSelected(ManipulatorComponent))
 	{
-		for (int32 i = 0; i < SelectedManipulators.Num(); i++)
+		for (int32 i = 0; i < NewSelectedManipulators.Num(); i++)
 		{
-			if (SelectedManipulators.IsValidIndex(i))
+			if (NewSelectedManipulators.IsValidIndex(i))
 			{
-				if (SelectedManipulators[i]->ID == ManipulatorComponent->GetManipulatorID())
+				if (NewSelectedManipulators[i]->ID == ManipulatorComponent->GetManipulatorID())
 				{
-					SelectedManipulators.RemoveAt(i);
+					NewSelectedManipulators.RemoveAt(i);
 					return;
 				}
 			}
@@ -857,7 +871,7 @@ bool FManipulatorToolsEditorEdMode::IsManipulatorSelected(UManipulatorComponent 
 	// Check if Manipulator ID already exists
 	if (ManipulatorComponent != nullptr)
 	{
-		for (FManipulatorData* SelectedManipulator : SelectedManipulators)
+		for (FManipulatorData* SelectedManipulator : NewSelectedManipulators)
 		{
 			if (SelectedManipulator->ID == ManipulatorComponent->GetManipulatorID())
 			{
@@ -868,12 +882,41 @@ bool FManipulatorToolsEditorEdMode::IsManipulatorSelected(UManipulatorComponent 
 	return false;
 }
 
+void FManipulatorToolsEditorEdMode::FindAndAddNewManipulatorSelection(FString PropertyName, FString ActorSequencerName)
+{
+	// Find the correct manipulator so we can correctly make a new selection data for the manipulator. 
+	TArray<AActor*> SelectedActors;
+	GEditor->GetSelectedActors()->GetSelectedObjects(SelectedActors);
+	for (AActor* SelectedActor : SelectedActors)
+	{
+		if (SelectedActor != nullptr && Owner->GetSelectedComponents()->GetTop<USceneComponent>() == nullptr)
+		{
+			if (SelectedActor->GetActorLabel() == ActorSequencerName)
+			{
+				TArray<UActorComponent*> Manipulators = SelectedActor->GetComponentsByClass(UManipulatorComponent::StaticClass());
+				for (UActorComponent* ActorComponent : Manipulators)
+				{
+					UManipulatorComponent* ManipulatorComponent = Cast<UManipulatorComponent>(ActorComponent);
+					if (ManipulatorComponent != nullptr)
+					{
+						if (ManipulatorComponent->Settings.Property.NameToEdit == PropertyName)
+						{
+							AddNewSelectedManipulator(ManipulatorComponent);
+							return;
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 FManipulatorData * FManipulatorToolsEditorEdMode::GetManipulatorData(UManipulatorComponent * ManipulatorComponent)
 {
 	FManipulatorData* ManipulatorData = new FManipulatorData();
 	if (ManipulatorComponent != nullptr)
 	{
-		for (FManipulatorData* SelectedManipulator : SelectedManipulators)
+		for (FManipulatorData* SelectedManipulator : NewSelectedManipulators)
 		{
 			if (SelectedManipulator->ID == ManipulatorComponent->GetManipulatorID())
 			{
@@ -886,7 +929,7 @@ FManipulatorData * FManipulatorToolsEditorEdMode::GetManipulatorData(UManipulato
 
 void FManipulatorToolsEditorEdMode::ClearManipulatorSelection()
 {
-	SelectedManipulators.Empty();
+	NewSelectedManipulators.Empty();
 	bEditedPropertyIsTransform = false;
 }
 
