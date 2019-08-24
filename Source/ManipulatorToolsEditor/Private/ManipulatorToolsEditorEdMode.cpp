@@ -289,8 +289,9 @@ bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewport
 		{
 			// Get the object to edit properties is the only way I could correctly get something that talked nicely to the get property value by name. 
 			UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(WidgetTransform, ManipulatorComponent);
-			if (ObjectToEditProperties != nullptr && ManipulatorComponent != nullptr)
+			if (ObjectToEditProperties != nullptr && ManipulatorComponent != nullptr && ManipulatorComponent->GetOwner() != nullptr && ManipulatorComponent->GetOwner()->GetRootComponent() != nullptr)
 			{
+				USceneComponent* RootComponent = ManipulatorComponent->GetOwner()->GetRootComponent();
 				// Not sure what this does.. but i kept it.
 				GEditor->NoteActorMovement();
 
@@ -324,6 +325,11 @@ bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewport
 					if (ManipulatorComponent->Settings.Draw.Extras.UsePropertyValueAsInitialOffset)
 					{
 						WidgetTransform.SetRotation(WidgetTransform.GetRotation() * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets).GetRotation());
+					}
+					else
+					{
+						WidgetTransform.SetRotation(WidgetTransform.GetRotation() * LocalTM.GetRotation().Inverse());
+						WidgetTransform.SetScale3D(WidgetTransform.GetScale3D() * LocalTM.GetScale3D());
 					}
 
 					// Flip Transforms if told to flip X
