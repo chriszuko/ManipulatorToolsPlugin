@@ -33,43 +33,87 @@ void FManipulatorToolsEditorEdModeToolkit::Init(const TSharedPtr<IToolkitHost>& 
 
 			+ SVerticalBox::Slot()
 			.Padding(5)
+			.AutoHeight()
 			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Top)
 			[
 				SNew(SCheckBox)
 				.OnCheckStateChanged(this, &FManipulatorToolsEditorEdModeToolkit::OnIsActorSelectionLockedChanged)
 				.IsChecked(this, &FManipulatorToolsEditorEdModeToolkit::IsActorSelectionLocked)
-				.ToolTipText(LOCTEXT("EnableDisableButtonToolTip", "Allows you to not accidentally change your selection as much."))
+				.ToolTipText(LOCTEXT("IsActorSelectionLockedToolTip", "Allows you to not accidentally change your selection as much."))
 				.Content()
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("IsActorSelectionLockedCheckbox", "Lock Actor Selection"))
 				]
 			]
+			+ SVerticalBox::Slot()
+			.Padding(5)
+			.AutoHeight()
+			.HAlign(HAlign_Left)
+			[
+				SNew(SCheckBox)
+				.OnCheckStateChanged(this, &FManipulatorToolsEditorEdModeToolkit::OnUseSafeDeSelectChanged)
+				.IsChecked(this, &FManipulatorToolsEditorEdModeToolkit::UseSafeDeSelect)
+				.ToolTipText(LOCTEXT("UseSafeDeSelectToolTip", "Won't allow you to deselect from a manipulator to another actor until you do it twice. This can feel odd if you don't realize what is happening."))
+				.Content()
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("UseSafeDeSelectCheckbox", "Use Safe DeSelect"))
+				]
+			]
 		];
 	FModeToolkit::Init(InitToolkitHost);
 }
 
+FManipulatorToolsEditorEdMode * FManipulatorToolsEditorEdModeToolkit::GetManipulatorToolsEdMode() const
+{
+	return static_cast<FManipulatorToolsEditorEdMode*>(GLevelEditorModeTools().GetActiveMode(FManipulatorToolsEditorEdMode::EM_ManipulatorToolsEditorEdModeId));
+}
+
 ECheckBoxState FManipulatorToolsEditorEdModeToolkit::IsActorSelectionLocked() const
 {
-	if (FManipulatorToolsEditorEdMode* ManipulatorToolsEdMode = static_cast<FManipulatorToolsEditorEdMode*>(GLevelEditorModeTools().GetActiveMode(FManipulatorToolsEditorEdMode::EM_ManipulatorToolsEditorEdModeId)))
+	if (GetManipulatorToolsEdMode())
 	{
-		return ManipulatorToolsEdMode->GetIsActorSelectionLocked() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+		return GetManipulatorToolsEdMode()->GetIsActorSelectionLocked() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 	}
 	return ECheckBoxState::Unchecked;
 }
 
 void FManipulatorToolsEditorEdModeToolkit::OnIsActorSelectionLockedChanged(ECheckBoxState NewCheckedState)
 {
-	if (FManipulatorToolsEditorEdMode* ManipulatorToolsEdMode = static_cast<FManipulatorToolsEditorEdMode*>(GLevelEditorModeTools().GetActiveMode(FManipulatorToolsEditorEdMode::EM_ManipulatorToolsEditorEdModeId)))
+	if (GetEditorMode())
 	{
 		if (NewCheckedState == ECheckBoxState::Checked)
 		{
-			ManipulatorToolsEdMode->UpdateIsActorSelectionLocked(true);
+			GetManipulatorToolsEdMode()->UpdateIsActorSelectionLocked(true);
 		}
 		else
 		{
-			ManipulatorToolsEdMode->UpdateIsActorSelectionLocked(false);
+			GetManipulatorToolsEdMode()->UpdateIsActorSelectionLocked(false);
+		}
+	}
+}
+
+ECheckBoxState FManipulatorToolsEditorEdModeToolkit::UseSafeDeSelect() const
+{
+	if (GetManipulatorToolsEdMode())
+	{
+		return GetManipulatorToolsEdMode()->GetUseSafeDeSelect() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+	}
+	return ECheckBoxState::Unchecked;
+}
+
+void FManipulatorToolsEditorEdModeToolkit::OnUseSafeDeSelectChanged(ECheckBoxState NewCheckedState)
+{
+	if (GetEditorMode())
+	{
+		if (NewCheckedState == ECheckBoxState::Checked)
+		{
+			GetManipulatorToolsEdMode()->UpdateUseSafeDeSelect(true);
+		}
+		else
+		{
+			GetManipulatorToolsEdMode()->UpdateUseSafeDeSelect(false);
 		}
 	}
 }

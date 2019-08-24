@@ -24,6 +24,10 @@ public:
 	void OnIsActorSelectionLockedChanged(ECheckBoxState NewCheckedState);
 	ECheckBoxState IsActorSelectionLocked() const;
 
+	void OnUseSafeDeSelectChanged(ECheckBoxState NewCheckedState);
+	ECheckBoxState UseSafeDeSelect() const;
+	
+	FManipulatorToolsEditorEdMode* GetManipulatorToolsEdMode() const;
 private:
 
 	TSharedPtr<SWidget> ToolkitWidget;
