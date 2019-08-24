@@ -194,6 +194,9 @@ public:
 	void UpdateIsActorSelectionLocked(bool bNewIsActorSelectionLocked);
 	bool GetIsActorSelectionLocked() const;
 
+	void UpdateUseSafeDeSelect(bool bNewUseSafeDeSelect);
+	bool GetUseSafeDeSelect() const;
+
 	/** EditedPropertyName Already Exists in EdMode */
 	FString EditedManipulatorPropertyName = "";
 	FString EditedComponentName = "";
@@ -202,6 +205,7 @@ public:
 private:
 	/** Data */
 	bool bIsActorSelectionLocked = false;
+	bool bUseSafeDeSelect = false;
 	TArray<FManipulatorData*> SelectedManipulators;
 	TArray<FManipulatorData*> NewSelectedManipulators;
 	//TArray<FString> SelectedManipulators;
@@ -234,5 +238,8 @@ private:
 	TWeakPtr<ISequencer> WeakSequencer;
 	void SequencerUpdateTrackSelection();
 	bool AllowTrackSelectionUpdate = false;
+	int32 DeSelectCounter = 0;
+	void ResetDeSelectCounter();
+	void ReduceDeSelectCounter();
 	void SequencerKeyProperty(UObject* ObjectToKey, UProperty* propertyToUse);
 };

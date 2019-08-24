@@ -102,7 +102,7 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 
 					// Declaration of variables before drawing anything
 					FTransform WidgetTransform = GetManipulatorTransformWithOffsets(ManipulatorComponent);
-
+					
 					ESceneDepthPriorityGroup WidgetDepthPriority = ManipulatorComponent->Settings.Draw.Extras.DepthPriorityGroup;
 					float WidgetThickness = 1;
 					FTransform WidgetOverallSize = FTransform();
@@ -226,6 +226,7 @@ bool FManipulatorToolsEditorEdMode::HandleClick(FEditorViewportClient * InViewpo
 		if (PropertyProxy->ManipulatorComponent->Settings.Property.Type == EManipulatorPropertyType::MT_BOOL)
 		{
 			ToggleBoolPropertyValueFromManipulator(PropertyProxy->ManipulatorComponent);
+			ResetDeSelectCounter();
 		}
 		else
 		{
@@ -243,6 +244,7 @@ bool FManipulatorToolsEditorEdMode::HandleClick(FEditorViewportClient * InViewpo
 				AddNewSelectedManipulator(PropertyProxy->ManipulatorComponent);
 			}
 			AllowTrackSelectionUpdate = true;
+			ResetDeSelectCounter();
 		}
 		return true;
 	}
@@ -250,6 +252,11 @@ bool FManipulatorToolsEditorEdMode::HandleClick(FEditorViewportClient * InViewpo
 	else if (HitProxy != nullptr && HitProxy->IsA(HActor::StaticGetType()) && Click.IsShiftDown())
 	{
 		ClearManipulatorSelection();
+	}
+	else if (DeSelectCounter > 0)
+	{
+		ReduceDeSelectCounter();
+		return true;
 	}
 	FEdMode::HandleClick(InViewportClient, HitProxy, Click);
 
@@ -353,8 +360,6 @@ bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewport
 
 					LocalTM = ManipulatorComponent->ConstrainTransform(LocalTM);
 
-
-
 					// Prepare for editing
 					ObjectToEditProperties->PreEditChange(NULL);
 					UProperty* SetProperty = NULL;
@@ -380,6 +385,7 @@ bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewport
 
 					FPropertyChangedEvent PropertyChangeEvent(SetProperty);
 					ObjectToEditProperties->PostEditChangeProperty(PropertyChangeEvent);
+					ResetDeSelectCounter();
 					if (ManipulatorData == SelectedManipulators.Last())
 					{
 						return true;
@@ -511,6 +517,31 @@ void FManipulatorToolsEditorEdMode::OnSequencerTrackSelectionChanged(TArray<UMov
 
 /* ---------- Private Sequencer ----------*/
 
+void FManipulatorToolsEditorEdMode::ResetDeSelectCounter()
+{
+	if (bUseSafeDeSelect)
+	{
+		DeSelectCounter = 1;
+	}
+	else
+	{
+		DeSelectCounter = 0;
+	}
+
+}
+
+void FManipulatorToolsEditorEdMode::ReduceDeSelectCounter()
+{
+	if (bUseSafeDeSelect)
+	{
+		DeSelectCounter = DeSelectCounter - 1;
+	}
+	else
+	{
+		DeSelectCounter = 0;
+	}
+}
+
 void FManipulatorToolsEditorEdMode::SequencerKeyProperty(UObject* ObjectToKey, UProperty* propertyToUse)
 {
 	if (WeakSequencer != nullptr)
@@ -583,6 +614,17 @@ void FManipulatorToolsEditorEdMode::UpdateIsActorSelectionLocked(bool bNewIsActo
 bool FManipulatorToolsEditorEdMode::GetIsActorSelectionLocked() const
 {
 	return bIsActorSelectionLocked;
+}
+
+void FManipulatorToolsEditorEdMode::UpdateUseSafeDeSelect(bool bNewUseSafeDeSelect)
+{
+	bUseSafeDeSelect = bNewUseSafeDeSelect;
+	ResetDeSelectCounter();
+}
+
+bool FManipulatorToolsEditorEdMode::GetUseSafeDeSelect() const
+{
+	return bUseSafeDeSelect;
 }
 
 /* ---------- Private Manipulator Components ----------*/
