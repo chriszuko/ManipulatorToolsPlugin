@@ -327,20 +327,25 @@ bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewport
 						EnumValue = GetPropertyValueByName<uint8>(ObjectToEditProperties, ManipulatorData->PropertyName, ManipulatorData->PropertyIndex);
 						break;
 					}
-
+					
 					// Use the visual offset to correctly translate information on super visually offset widgets.
-					if (ManipulatorComponent->Settings.Draw.Extras.UsePropertyValueAsInitialOffset)
-					{
-						WidgetTransform.SetRotation(WidgetTransform.GetRotation() * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets).GetRotation());
-					}
-					else
-					{
-						WidgetTransform.SetRotation(WidgetTransform.GetRotation() * LocalTM.GetRotation().Inverse());
-						WidgetTransform.SetScale3D(WidgetTransform.GetScale3D() * LocalTM.GetScale3D());
-					}
+					WidgetTransform.SetRotation(WidgetTransform.GetRotation() * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets).GetRotation());
 
 					// Flip Transforms if told to flip X
 					LocalTM = FlipTransformOnX(LocalTM, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXLocation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualYRotation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXScale);
+
+					if (ManipulatorComponent->Settings.Draw.Extras.UsePropertyValueAsInitialOffset == false || ManipulatorComponent->Settings.Draw.Extras.UseAttachedSocketAsInitialOffset)
+					{
+						WidgetTransform = ManipulatorComponent->GetOwner()->GetActorTransform();
+						//When using the attached socket as initial offset, we inject the transform of the socket in automatically before our offsets. 
+						if (ManipulatorComponent->Settings.Draw.Extras.UseAttachedSocketAsInitialOffset)
+						{
+							WidgetTransform = WidgetTransform * ManipulatorComponent->GetSocketTransform(ManipulatorComponent->GetAttachSocketName(), ERelativeTransformSpace::RTS_Actor);
+						}
+						WidgetTransform = WidgetTransform * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets);
+						WidgetTransform.SetRotation(WidgetTransform.GetRotation() * LocalTM.GetRotation().Inverse());
+						WidgetTransform.SetScale3D(WidgetTransform.GetScale3D() * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets).GetScale3D() * LocalTM.GetScale3D());
+					}
 
 					// Calculate world transform
 					NewTM = LocalTM * WidgetTransform;
@@ -711,7 +716,11 @@ FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UMa
 	RelativeTransform = ManipulatorComponent->ConstrainTransform(RelativeTransform);
 	RelativeTransform = FlipTransformOnX(RelativeTransform, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXLocation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualYRotation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXScale);
 
-	if (!ManipulatorComponent->Settings.Draw.Extras.UsePropertyValueAsInitialOffset)
+	if (ManipulatorComponent->Settings.Draw.Extras.UseAttachedSocketAsInitialOffset == true)
+	{
+		RelativeTransform = ManipulatorComponent->GetSocketTransform(ManipulatorComponent->GetAttachSocketName(), ERelativeTransformSpace::RTS_Actor);
+	}
+	else if (ManipulatorComponent->Settings.Draw.Extras.UsePropertyValueAsInitialOffset == false)
 	{
 		RelativeTransform = FTransform::Identity;
 	}

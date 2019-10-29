@@ -231,6 +231,10 @@ struct FManipulatorSettingsMainDrawExtras
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool UsePropertyValueAsInitialOffset = true;
 
+	/** When on, it overrides Use PropertyValueAsInitialOffset and then finds the parent socket its attached too's position to use as the manipualtor's Initial location. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool UseAttachedSocketAsInitialOffset = false;
+
 	/** Zoom Offset allows the manipulator to keep its size relative to camera distance. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool UseZoomOffset = false;
