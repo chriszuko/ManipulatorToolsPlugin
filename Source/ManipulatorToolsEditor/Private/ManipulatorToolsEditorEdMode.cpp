@@ -334,17 +334,26 @@ bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewport
 					// Flip Transforms if told to flip X
 					LocalTM = FlipTransformOnX(LocalTM, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXLocation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualYRotation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXScale);
 
+					// Handle all of the property value information custom based off of offsets OR SOCKET INFORMATION! ... its kinda nuts actually. 
 					if (ManipulatorComponent->Settings.Draw.Extras.UsePropertyValueAsInitialOffset == false || ManipulatorComponent->Settings.Draw.Extras.UseAttachedSocketAsInitialOffset)
 					{
-						WidgetTransform = ManipulatorComponent->GetOwner()->GetActorTransform();
+						//Zero out transform so that we can start from scratch.
+						WidgetTransform = FTransform();
 						//When using the attached socket as initial offset, we inject the transform of the socket in automatically before our offsets. 
 						if (ManipulatorComponent->Settings.Draw.Extras.UseAttachedSocketAsInitialOffset)
 						{
 							WidgetTransform = WidgetTransform * ManipulatorComponent->GetSocketTransform(ManipulatorComponent->GetAttachSocketName(), ERelativeTransformSpace::RTS_Actor);
 						}
+						//Compose Transforms with the Manipulator Component's Offsets
 						WidgetTransform = WidgetTransform * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets);
+						
+						//Compose the Rotation and scale information of the LocalTM
+						WidgetTransform.SetLocation(WidgetTransform.GetTranslation() + (LocalTM.GetTranslation() * FVector(-1, -1, -1)));
 						WidgetTransform.SetRotation(WidgetTransform.GetRotation() * LocalTM.GetRotation().Inverse());
-						WidgetTransform.SetScale3D(WidgetTransform.GetScale3D() * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets).GetScale3D() * LocalTM.GetScale3D());
+						WidgetTransform.SetScale3D(WidgetTransform.GetScale3D() *  LocalTM.GetScale3D());
+
+						//Finally then compose the transform with the actor's transform to get it to correctly calculate all of the data from the world position of the manipulator.
+						WidgetTransform = WidgetTransform * ManipulatorComponent->GetOwner()->GetActorTransform();
 					}
 
 					// Calculate world transform

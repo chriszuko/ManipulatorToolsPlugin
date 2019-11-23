@@ -317,7 +317,7 @@ struct FManipulatorSettingsMain
 	FManipulatorSettingsMainConstraints Constraints;
 };
 
-UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent), hidecategories = ("Rendering" , "Physics" , "ComponentReplication" , "LOD", "AssetUserData", "Collision", "Cooking", "Activation"))
+UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent), hidecategories = ("Rendering" , "Physics" , "ComponentReplication" , "LOD", "AssetUserData", "Collision", "Activation"))
 class MANIPULATORTOOLS_API UManipulatorComponent : public USceneComponent
 {
 	GENERATED_BODY()
