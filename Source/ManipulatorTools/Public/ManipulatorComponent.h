@@ -403,6 +403,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ManipulatorTools|Shapes")
 	void SetShapeOfTypePlane(int32 Index, FManipulatorSettingsMainDrawPlane Plane);
 
+	virtual FTransform GetSocketTransform(FName InSocketName, ERelativeTransformSpace TransformSpace /* = RTS_World */) const override;
 
 protected:
 	// Called when the game starts

@@ -203,6 +203,21 @@ void UManipulatorComponent::SetShapeOfTypePlane(int32 Index, FManipulatorSetting
 	SetArrayElement(Plane, Settings.Draw.Shapes.Planes, Index);
 }
 
+FTransform UManipulatorComponent::GetSocketTransform(FName InSocketName, ERelativeTransformSpace TransformSpace) const
+{
+	const USceneComponent* Top;
+	for (Top = this; IsValid(Top) && IsValid(Top->GetAttachParent()) && IsValid(Cast<UMeshComponent>(Top)) == false ; Top = Top->GetAttachParent());
+	if (IsValid(Top))
+	{
+		FString Name = Top->GetName();
+		return Top->GetSocketTransform(InSocketName, TransformSpace);
+	}
+	else
+	{
+		return FTransform::Identity;
+	}
+}
+
 // Called when the game starts
 void UManipulatorComponent::BeginPlay()
 {

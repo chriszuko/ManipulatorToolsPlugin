@@ -270,7 +270,7 @@ FVector FManipulatorToolsEditorEdMode::GetWidgetLocation() const
 	FTransform WidgetTransform = FTransform::Identity;
 	if (SelectedManipulators.Num() > 0)
 	{
-		if (GetSelectedManipulatorComponent(SelectedManipulators.Last(), ManipulatorComponent, WidgetTransform))
+		if (GetSelectedManipulatorComponent(SelectedManipulators.Last(), ManipulatorComponent))
 		{
 			FVector WorldLocation = Owner->PivotLocation;
 			// Handle Enum property offsets
@@ -286,25 +286,34 @@ FVector FManipulatorToolsEditorEdMode::GetWidgetLocation() const
 
 bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewportClient, FViewport* InViewport, FVector & InDrag, FRotator & InRot, FVector & InScale)
 {
+	bool IsDragging = InDrag.IsZero();
+	bool IsRotating = InRot.IsZero();
+	bool IsScaling = InScale.IsZero();
+	FTransform DeltaTransform = FTransform::Identity;
+
+	DeltaTransform.SetTranslation(InDrag);
+	DeltaTransform.SetRotation(InRot.Quaternion());
+	DeltaTransform.SetScale3D(InScale);
 
 	// The input delta is what tells the widget how much to adjust its value by based on user input. 
 	UManipulatorComponent* ManipulatorComponent;
 	FTransform WidgetTransform = FTransform::Identity;
 	for (FManipulatorData* ManipulatorData : SelectedManipulators)
 	{
-		if (GetSelectedManipulatorComponent(ManipulatorData, ManipulatorComponent, WidgetTransform) && InViewportClient->GetCurrentWidgetAxis() != EAxisList::None)
+		if (GetSelectedManipulatorComponent(ManipulatorData, ManipulatorComponent) && InViewportClient->GetCurrentWidgetAxis() != EAxisList::None)
 		{
 			// Get the object to edit properties is the only way I could correctly get something that talked nicely to the get property value by name. 
-			UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(WidgetTransform, ManipulatorComponent);
+			UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(ManipulatorComponent);
 			if (ObjectToEditProperties != nullptr && ManipulatorComponent != nullptr && ManipulatorComponent->GetOwner() != nullptr && ManipulatorComponent->GetOwner()->GetRootComponent() != nullptr)
 			{
+				WidgetTransform = GetManipulatorTransformWithOffsets(ManipulatorComponent);
 				USceneComponent* RootComponent = ManipulatorComponent->GetOwner()->GetRootComponent();
 				// Not sure what this does.. but i kept it.
 				GEditor->NoteActorMovement();
 
 				if (!ManipulatorData->PropertyName.IsEmpty())
 				{
-					FTransform LocalTM = FTransform::Identity;
+					FTransform PropertyTransform = FTransform::Identity;
 					FTransform NewTM = FTransform::Identity;
 					FVector LocalLocation = FVector();
 					uint8 EnumValue = 0;
@@ -317,62 +326,52 @@ bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewport
 					{
 					case EManipulatorPropertyType::MT_TRANSFORM:
 						// Get Property Here
-						LocalTM = GetPropertyValueByName<FTransform>(ObjectToEditProperties, ManipulatorData->PropertyName, ManipulatorData->PropertyIndex);
+						PropertyTransform = GetPropertyValueByName<FTransform>(ObjectToEditProperties, ManipulatorData->PropertyName, ManipulatorData->PropertyIndex);
 						break;
 					case EManipulatorPropertyType::MT_VECTOR:
 						LocalLocation = GetPropertyValueByName<FVector>(ObjectToEditProperties, ManipulatorData->PropertyName, ManipulatorData->PropertyIndex);
-						LocalTM = FTransform(LocalLocation);
+						PropertyTransform = FTransform(LocalLocation);
 						break;
 					case EManipulatorPropertyType::MT_ENUM:
 						EnumValue = GetPropertyValueByName<uint8>(ObjectToEditProperties, ManipulatorData->PropertyName, ManipulatorData->PropertyIndex);
 						break;
 					}
 					
-					// Use the visual offset to correctly translate information on super visually offset widgets.
-					WidgetTransform.SetRotation(WidgetTransform.GetRotation() * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets).GetRotation());
-
 					// Flip Transforms if told to flip X
-					LocalTM = FlipTransformOnX(LocalTM, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXLocation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualYRotation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXScale);
+					PropertyTransform = FlipTransformOnX(PropertyTransform, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXLocation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualYRotation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXScale);
 
-					// Handle all of the property value information custom based off of offsets OR SOCKET INFORMATION! ... its kinda nuts actually. 
-					if (ManipulatorComponent->Settings.Draw.Extras.UsePropertyValueAsInitialOffset == false || ManipulatorComponent->Settings.Draw.Extras.UseAttachedSocketAsInitialOffset)
+					// Actor Transform is essentially the reference point for which the manipulator will use to do its calculations. We move this point as needed per usage
+					FTransform ActorTransform = PropertyTransform.Inverse() * WidgetTransform;
+					FTransform PropertyTransformWithDelta = PropertyTransform;
+
+					// Handle Custom Actions When Adjusting things
+					if (ManipulatorComponent->Settings.Draw.Extras.UseAttachedSocketAsInitialOffset)
 					{
-						//Zero out transform so that we can start from scratch.
-						WidgetTransform = FTransform();
-						//When using the attached socket as initial offset, we inject the transform of the socket in automatically before our offsets. 
-						if (ManipulatorComponent->Settings.Draw.Extras.UseAttachedSocketAsInitialOffset)
-						{
-							WidgetTransform = WidgetTransform * ManipulatorComponent->GetSocketTransform(ManipulatorComponent->GetAttachSocketName(), ERelativeTransformSpace::RTS_Actor);
-						}
-						//Compose Transforms with the Manipulator Component's Offsets
-						WidgetTransform = WidgetTransform * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets);
-						
-						//Compose the Rotation and scale information of the LocalTM
-						WidgetTransform.SetLocation(WidgetTransform.GetTranslation() + (LocalTM.GetTranslation() * FVector(-1, -1, -1)));
-						WidgetTransform.SetRotation(WidgetTransform.GetRotation() * LocalTM.GetRotation().Inverse());
-						WidgetTransform.SetScale3D(WidgetTransform.GetScale3D() *  LocalTM.GetScale3D());
-
-						//Finally then compose the transform with the actor's transform to get it to correctly calculate all of the data from the world position of the manipulator.
-						WidgetTransform = WidgetTransform * ManipulatorComponent->GetOwner()->GetActorTransform();
+						ActorTransform = PropertyTransform.Inverse() * ManipulatorComponent->GetComponentTransform();
+					}
+					else if (ManipulatorComponent->Settings.Draw.Extras.UsePropertyValueAsInitialOffset == false)
+					{
+						ActorTransform = FTransform::Identity;
 					}
 
-					// Calculate world transform
-					NewTM = LocalTM * WidgetTransform;
+					// Convert to World
+					FTransform WorldTransform = PropertyTransform * ActorTransform;
+					
+					// Add Deltas
+					WorldTransform.SetTranslation(WorldTransform.GetTranslation() + DeltaTransform.GetLocation());
+					WorldTransform.SetRotation(DeltaTransform.GetRotation() * WorldTransform.GetRotation());
 
-					// Apply delta in world space
-					NewTM.SetTranslation(NewTM.GetTranslation() + InDrag);
-
-					NewTM.SetRotation(InRot.Quaternion() * NewTM.GetRotation());
 					// Convert new world transform back into local space
-					LocalTM = NewTM.GetRelativeTransform(WidgetTransform);
-					LocalTM.SetRotation(LocalTM.GetRotation());
+					PropertyTransformWithDelta = WorldTransform.GetRelativeTransform(ActorTransform);
+
 					// Apply delta scale
-					LocalTM.SetScale3D(LocalTM.GetScale3D() + InScale);
+					PropertyTransformWithDelta.SetScale3D(PropertyTransform.GetScale3D() + DeltaTransform.GetScale3D());
 
 					// Flip Transform Back so the values are correct
-					LocalTM = FlipTransformOnX(LocalTM, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXLocation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualYRotation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXScale);
+					PropertyTransformWithDelta = FlipTransformOnX(PropertyTransformWithDelta, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXLocation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualYRotation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXScale);
 
-					LocalTM = ManipulatorComponent->ConstrainTransform(LocalTM);
+					// Constrain
+					PropertyTransformWithDelta = ManipulatorComponent->ConstrainTransform(PropertyTransformWithDelta);
 
 					// Prepare for editing
 					ObjectToEditProperties->PreEditChange(NULL);
@@ -383,14 +382,14 @@ bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewport
 					{
 					case EManipulatorPropertyType::MT_TRANSFORM:
 						// Get Property Here
-						SetPropertyValueByName<FTransform>(ObjectToEditProperties, ManipulatorData->PropertyName, ManipulatorData->PropertyIndex, LocalTM, SetProperty);
+						SetPropertyValueByName<FTransform>(ObjectToEditProperties, ManipulatorData->PropertyName, ManipulatorData->PropertyIndex, PropertyTransformWithDelta, SetProperty);
 						break;
 					case EManipulatorPropertyType::MT_VECTOR:
-						SetPropertyValueByName<FVector>(ObjectToEditProperties, ManipulatorData->PropertyName, ManipulatorData->PropertyIndex, LocalTM.GetLocation(), SetProperty);
+						SetPropertyValueByName<FVector>(ObjectToEditProperties, ManipulatorData->PropertyName, ManipulatorData->PropertyIndex, PropertyTransformWithDelta.GetLocation(), SetProperty);
 						break;
 					case EManipulatorPropertyType::MT_ENUM:
 						//Handle Enum Change
-						EnumValue = HandleEnumPropertyInputDelta(ManipulatorComponent, LocalTM, EnumValue);
+						EnumValue = HandleEnumPropertyInputDelta(ManipulatorComponent, PropertyTransformWithDelta, EnumValue);
 						SetPropertyValueByName<uint8>(ObjectToEditProperties, ManipulatorData->PropertyName, ManipulatorData->PropertyIndex, EnumValue, SetProperty);
 						break;
 					}
@@ -422,17 +421,14 @@ bool FManipulatorToolsEditorEdMode::GetCustomDrawingCoordinateSystem(FMatrix& In
 {
 	// Mostly copied code from EdMode to make Transforms correctly display their custom axis information when editing.
 	UManipulatorComponent* ManipulatorComponent = NewObject<UManipulatorComponent>();
-	FTransform WidgetTransform = FTransform::Identity;
 	if (SelectedManipulators.Num() > 0)
 	{
-		if (GetSelectedManipulatorComponent(SelectedManipulators.Last(), ManipulatorComponent, WidgetTransform))
-		{
-			WidgetTransform = GetManipulatorTransformWithOffsets(ManipulatorComponent);
-			FTransform DisplayWidgetToWorld;
-			FTransform LocalTM;
-			UObject* BestSelectedItem = GetObjectToDisplayWidgetsFromManipulator(DisplayWidgetToWorld, ManipulatorComponent);
+		if (GetSelectedManipulatorComponent(SelectedManipulators.Last(), ManipulatorComponent))
+		{			
+			UObject* BestSelectedItem = GetObjectToDisplayWidgetsFromManipulator(ManipulatorComponent);
 			if (BestSelectedItem && ManipulatorComponent->Settings.Property.NameToEdit != TEXT(""))
 			{
+				FTransform WidgetTransform = GetManipulatorTransformWithOffsets(ManipulatorComponent);
 				switch (ManipulatorComponent->Settings.Property.Type)
 				{
 				case EManipulatorPropertyType::MT_TRANSFORM:
@@ -643,7 +639,7 @@ bool FManipulatorToolsEditorEdMode::GetUseSafeDeSelect() const
 
 /* ---------- Private Manipulator Components ----------*/
 
-bool FManipulatorToolsEditorEdMode::GetSelectedManipulatorComponent(FManipulatorData* ManipulatorData, UManipulatorComponent*& OutComponent, FTransform& OutWidgetTransform) const
+bool FManipulatorToolsEditorEdMode::GetSelectedManipulatorComponent(FManipulatorData* ManipulatorData, UManipulatorComponent*& OutComponent) const
 {
 	// Finds the first actor then walks through the components to find the currently selected component based off of component name and property to edit. 
 	// Outputs false if at any point any of the out information is null or fails.
@@ -663,7 +659,6 @@ bool FManipulatorToolsEditorEdMode::GetSelectedManipulatorComponent(FManipulator
 					if (ManipulatorComponent->GetManipulatorID() == ManipulatorData->ID)
 					{
 						OutComponent = ManipulatorComponent;
-						OutWidgetTransform = ManipulatorComponent->GetComponentToWorld();
 						return true;
 					}
 				}
@@ -675,6 +670,10 @@ bool FManipulatorToolsEditorEdMode::GetSelectedManipulatorComponent(FManipulator
 
 FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UManipulatorComponent * ManipulatorComponent) const
 {
+	if (IsValid(ManipulatorComponent) == false)
+	{
+		return FTransform::Identity;
+	}
 	// Enum Offsets
 	FVector EnumPropertyOffset = FVector(0, 0, 0);
 	uint8 EnumValue = 0;
@@ -682,7 +681,7 @@ FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UMa
 	// Visual Offset and Relative Offset
 	FTransform RelativeTransform = FTransform::Identity;
 	FTransform WidgetTransform = FTransform::Identity;
-	UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(WidgetTransform, ManipulatorComponent);
+	UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(ManipulatorComponent);
 
 	// Handle offsets per property type bools are ignored in here because they are essentially world buttons.
 	switch (ManipulatorComponent->Settings.Property.Type)
@@ -725,9 +724,12 @@ FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UMa
 	RelativeTransform = ManipulatorComponent->ConstrainTransform(RelativeTransform);
 	RelativeTransform = FlipTransformOnX(RelativeTransform, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXLocation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualYRotation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXScale);
 
+	FTransform SocketTransform = FTransform::Identity;
+
 	if (ManipulatorComponent->Settings.Draw.Extras.UseAttachedSocketAsInitialOffset == true)
 	{
-		RelativeTransform = ManipulatorComponent->GetSocketTransform(ManipulatorComponent->GetAttachSocketName(), ERelativeTransformSpace::RTS_Actor);
+		SocketTransform = ManipulatorComponent->GetSocketTransform(ManipulatorComponent->GetAttachSocketName(), ERelativeTransformSpace::RTS_Actor);
+		RelativeTransform = FTransform::Identity;
 	}
 	else if (ManipulatorComponent->Settings.Draw.Extras.UsePropertyValueAsInitialOffset == false)
 	{
@@ -737,7 +739,7 @@ FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UMa
 	RelativeTransform.NormalizeRotation();
 
 	// Compose Relative Transform, Enum Offset, Visual Offset and Actor Transform together to get the final Widget Transform.
-	WidgetTransform = RelativeTransform * FTransform(EnumPropertyOffset) * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets) * ManipulatorComponent->GetOwner()->GetActorTransform();
+	WidgetTransform = RelativeTransform * FTransform(EnumPropertyOffset) * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets) * SocketTransform * ManipulatorComponent->GetOwner()->GetActorTransform();
 	WidgetTransform.NormalizeRotation();
 	return WidgetTransform;
 }
@@ -753,8 +755,7 @@ bool FManipulatorToolsEditorEdMode::GetBoolPropertyValueFromManipulator(UManipul
 	bool Output = false;
 	if (ManipulatorComponent->Settings.Property.Type == EManipulatorPropertyType::MT_BOOL)
 	{
-		FTransform WidgetTransform;
-		UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(WidgetTransform, ManipulatorComponent);
+		UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(ManipulatorComponent);
 		if (ObjectToEditProperties != nullptr)
 		{
 			Output = GetPropertyValueByName<bool>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index);
@@ -769,8 +770,7 @@ void FManipulatorToolsEditorEdMode::ToggleBoolPropertyValueFromManipulator(UMani
 	if (ManipulatorComponent->Settings.Property.Type == EManipulatorPropertyType::MT_BOOL)
 	{
 		bool CurrentBool = false;
-		FTransform WidgetTransform;
-		UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(WidgetTransform, ManipulatorComponent);
+		UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(ManipulatorComponent);
 		if (ObjectToEditProperties != nullptr)
 		{
 			CurrentBool = GetPropertyValueByName<bool>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index);
@@ -788,12 +788,12 @@ void FManipulatorToolsEditorEdMode::ToggleBoolPropertyValueFromManipulator(UMani
 	}
 }
 
-UObject * FManipulatorToolsEditorEdMode::GetObjectToDisplayWidgetsFromManipulator(FTransform & OutLocalToWorld, UManipulatorComponent* ManipulatorComponent) const
+UObject * FManipulatorToolsEditorEdMode::GetObjectToDisplayWidgetsFromManipulator(/*FTransform & OutLocalToWorld, */ UManipulatorComponent* ManipulatorComponent) const
 {
 	// Determine what is selected, preferring a component over an actor
 	USceneComponent* SelectedComponent = ManipulatorComponent->GetOwner()->GetRootComponent();
 	UObject* BestSelectedItem = ManipulatorComponent->GetOwner();
-	OutLocalToWorld = SelectedComponent->GetComponentToWorld();
+	//OutLocalToWorld = GetManipulatorTransformWithOffsets(ManipulatorComponent);
 	return BestSelectedItem; 
 }
 

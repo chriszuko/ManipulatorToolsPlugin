@@ -211,12 +211,12 @@ private:
 	//TArray<FString> SelectedManipulators;
 
 	/** ManipulatorComponents */
-	virtual bool GetSelectedManipulatorComponent(FManipulatorData* ManipulatorData, UManipulatorComponent*& OutComponent, FTransform& OutWidgetTransform) const;
+	virtual bool GetSelectedManipulatorComponent(FManipulatorData* ManipulatorData, UManipulatorComponent*& OutComponent) const;
 	FTransform GetManipulatorTransformWithOffsets(UManipulatorComponent* ManipulatorComponent) const;
 	UManipulatorComponent* FindManipulatorComponentInActor(FString PropertyName, FString ActorName);
 	bool GetBoolPropertyValueFromManipulator(UManipulatorComponent* ManipulatorComponent);
 	void ToggleBoolPropertyValueFromManipulator(UManipulatorComponent* ManipulatorComponent);
-	UObject* GetObjectToDisplayWidgetsFromManipulator(FTransform& OutLocalToWorld, UManipulatorComponent* ManipulatorComponent) const;
+	UObject* GetObjectToDisplayWidgetsFromManipulator(UManipulatorComponent* ManipulatorComponent) const;
 	uint8 HandleEnumPropertyInputDelta(UManipulatorComponent* ManipulatorComponent, FTransform LocalTM, uint8 EnumInput);
 
 	/** Combines Transforms of the shapes together with an option to rotate the scale vector.*/
