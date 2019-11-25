@@ -289,11 +289,6 @@ bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewport
 	bool IsDragging = InDrag.IsZero();
 	bool IsRotating = InRot.IsZero();
 	bool IsScaling = InScale.IsZero();
-	FTransform DeltaTransform = FTransform::Identity;
-
-	DeltaTransform.SetTranslation(InDrag);
-	DeltaTransform.SetRotation(InRot.Quaternion());
-	DeltaTransform.SetScale3D(InScale);
 
 	// The input delta is what tells the widget how much to adjust its value by based on user input. 
 	UManipulatorComponent* ManipulatorComponent;
@@ -306,7 +301,8 @@ bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewport
 			UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(ManipulatorComponent);
 			if (ObjectToEditProperties != nullptr && ManipulatorComponent != nullptr && ManipulatorComponent->GetOwner() != nullptr && ManipulatorComponent->GetOwner()->GetRootComponent() != nullptr)
 			{
-				WidgetTransform = GetManipulatorTransformWithOffsets(ManipulatorComponent);
+				FTransform WidgetTransformNoPropertyOffset = FTransform::Identity;
+				WidgetTransform = GetManipulatorTransformWithOffsets(ManipulatorComponent, WidgetTransformNoPropertyOffset);
 				USceneComponent* RootComponent = ManipulatorComponent->GetOwner()->GetRootComponent();
 				// Not sure what this does.. but i kept it.
 				GEditor->NoteActorMovement();
@@ -341,13 +337,13 @@ bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewport
 					PropertyTransform = FlipTransformOnX(PropertyTransform, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXLocation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualYRotation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXScale);
 
 					// Actor Transform is essentially the reference point for which the manipulator will use to do its calculations. We move this point as needed per usage
-					FTransform ActorTransform = PropertyTransform.Inverse() * WidgetTransform;
+					FTransform ActorTransform = WidgetTransformNoPropertyOffset;
 					FTransform PropertyTransformWithDelta = PropertyTransform;
 
 					// Handle Custom Actions When Adjusting things
 					if (ManipulatorComponent->Settings.Draw.Extras.UseAttachedSocketAsInitialOffset)
 					{
-						ActorTransform = PropertyTransform.Inverse() * ManipulatorComponent->GetComponentTransform();
+					//	ActorTransform = PropertyTransform.Inverse() * ManipulatorComponent->GetComponentTransform();
 					}
 					else if (ManipulatorComponent->Settings.Draw.Extras.UsePropertyValueAsInitialOffset == false)
 					{
@@ -667,8 +663,13 @@ bool FManipulatorToolsEditorEdMode::GetSelectedManipulatorComponent(FManipulator
 	}
 	return false;
 }
+FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UManipulatorComponent* ManipulatorComponent) const
+{
+	FTransform FakeTransform = FTransform::Identity;
+	return GetManipulatorTransformWithOffsets(ManipulatorComponent, FakeTransform);
+}
 
-FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UManipulatorComponent * ManipulatorComponent) const
+FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UManipulatorComponent * ManipulatorComponent, FTransform& WidgetTransformNoPropertyOffset) const
 {
 	if (IsValid(ManipulatorComponent) == false)
 	{
@@ -679,7 +680,7 @@ FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UMa
 	uint8 EnumValue = 0;
 
 	// Visual Offset and Relative Offset
-	FTransform RelativeTransform = FTransform::Identity;
+	FTransform PropertyTransform = FTransform::Identity;
 	FTransform WidgetTransform = FTransform::Identity;
 	UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(ManipulatorComponent);
 
@@ -710,36 +711,37 @@ FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UMa
 		break;
 	case EManipulatorPropertyType::MT_TRANSFORM:
 	{
-		RelativeTransform = GetPropertyValueByName<FTransform>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index);
+		PropertyTransform = GetPropertyValueByName<FTransform>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index);
 		break;
 	}
 	case EManipulatorPropertyType::MT_VECTOR:
 	{
-		RelativeTransform = FTransform(GetPropertyValueByName<FVector>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index));
+		PropertyTransform = FTransform(GetPropertyValueByName<FVector>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index));
 		break;
 	}
 	}
 
 	// Constrain the relative transform via the manipulator components settings.
-	RelativeTransform = ManipulatorComponent->ConstrainTransform(RelativeTransform);
-	RelativeTransform = FlipTransformOnX(RelativeTransform, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXLocation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualYRotation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXScale);
+	PropertyTransform = ManipulatorComponent->ConstrainTransform(PropertyTransform);
+	PropertyTransform = FlipTransformOnX(PropertyTransform, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXLocation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualYRotation, ManipulatorComponent->Settings.Draw.Extras.FlipVisualXScale);
 
 	FTransform SocketTransform = FTransform::Identity;
 
 	if (ManipulatorComponent->Settings.Draw.Extras.UseAttachedSocketAsInitialOffset == true)
 	{
 		SocketTransform = ManipulatorComponent->GetSocketTransform(ManipulatorComponent->GetAttachSocketName(), ERelativeTransformSpace::RTS_Actor);
-		RelativeTransform = FTransform::Identity;
+		PropertyTransform = FTransform::Identity;
 	}
 	else if (ManipulatorComponent->Settings.Draw.Extras.UsePropertyValueAsInitialOffset == false)
 	{
-		RelativeTransform = FTransform::Identity;
+		PropertyTransform = FTransform::Identity;
 	}
 
-	RelativeTransform.NormalizeRotation();
+	PropertyTransform.NormalizeRotation();
 
 	// Compose Relative Transform, Enum Offset, Visual Offset and Actor Transform together to get the final Widget Transform.
-	WidgetTransform = RelativeTransform * FTransform(EnumPropertyOffset) * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets) * SocketTransform * ManipulatorComponent->GetOwner()->GetActorTransform();
+	WidgetTransform = PropertyTransform * FTransform(EnumPropertyOffset) * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets) * SocketTransform * ManipulatorComponent->GetOwner()->GetActorTransform();
+	WidgetTransformNoPropertyOffset = FTransform(EnumPropertyOffset) * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets) * SocketTransform * ManipulatorComponent->GetOwner()->GetActorTransform();
 	WidgetTransform.NormalizeRotation();
 	return WidgetTransform;
 }

@@ -213,6 +213,7 @@ private:
 	/** ManipulatorComponents */
 	virtual bool GetSelectedManipulatorComponent(FManipulatorData* ManipulatorData, UManipulatorComponent*& OutComponent) const;
 	FTransform GetManipulatorTransformWithOffsets(UManipulatorComponent* ManipulatorComponent) const;
+	FTransform GetManipulatorTransformWithOffsets(UManipulatorComponent* ManipulatorComponent, FTransform& WidgetTransformNoPropertyOffset) const;
 	UManipulatorComponent* FindManipulatorComponentInActor(FString PropertyName, FString ActorName);
 	bool GetBoolPropertyValueFromManipulator(UManipulatorComponent* ManipulatorComponent);
 	void ToggleBoolPropertyValueFromManipulator(UManipulatorComponent* ManipulatorComponent);
