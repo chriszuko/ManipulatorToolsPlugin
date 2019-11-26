@@ -730,7 +730,7 @@ FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UMa
 	if (ManipulatorComponent->Settings.Draw.Extras.UseAttachedSocketAsInitialOffset == true)
 	{
 		SocketTransform = ManipulatorComponent->GetSocketTransform(ManipulatorComponent->GetAttachSocketName(), ERelativeTransformSpace::RTS_Actor);
-		PropertyTransform = FTransform::Identity;
+		SocketTransform = PropertyTransform.Inverse() * SocketTransform;
 	}
 	else if (ManipulatorComponent->Settings.Draw.Extras.UsePropertyValueAsInitialOffset == false)
 	{
@@ -740,9 +740,10 @@ FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UMa
 	PropertyTransform.NormalizeRotation();
 
 	// Compose Relative Transform, Enum Offset, Visual Offset and Actor Transform together to get the final Widget Transform.
-	WidgetTransform = PropertyTransform * FTransform(EnumPropertyOffset) * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets) * SocketTransform * ManipulatorComponent->GetOwner()->GetActorTransform();
-	WidgetTransformNoPropertyOffset = FTransform(EnumPropertyOffset) * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets) * SocketTransform * ManipulatorComponent->GetOwner()->GetActorTransform();
+	WidgetTransform = PropertyTransform * FTransform(EnumPropertyOffset) * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets) * SocketTransform *  ManipulatorComponent->GetOwner()->GetActorTransform();
 	WidgetTransform.NormalizeRotation();
+	WidgetTransformNoPropertyOffset = FTransform(EnumPropertyOffset) * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets) * SocketTransform * ManipulatorComponent->GetOwner()->GetActorTransform();
+	WidgetTransformNoPropertyOffset.NormalizeRotation();
 	return WidgetTransform;
 }
 
