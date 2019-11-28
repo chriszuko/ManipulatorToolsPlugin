@@ -9,6 +9,8 @@ UManipulatorComponent::UManipulatorComponent()
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = false;
 	bIsEditorOnly = true;
+	bUseAttachParentBound = true;
+	CollisionEnabledHasPhysics(ECollisionEnabled::NoCollision);
 }
 
 
