@@ -9,6 +9,9 @@ UManipulatorComponent::UManipulatorComponent()
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = false;
 	bIsEditorOnly = true;
+#if WITH_EDITOR
+	SetIsVisualizationComponent(true);
+#endif
 	bUseAttachParentBound = true;
 	CollisionEnabledHasPhysics(ECollisionEnabled::NoCollision);
 }
@@ -33,7 +36,7 @@ FTransform UManipulatorComponent::ConstrainTransform(FTransform Transform)
 			FVector Scale = Transform.GetScale3D();
 			Scale.X = FMath::Clamp(Scale.X, Settings.Constraints.XScaleMinMax.X, Settings.Constraints.XScaleMinMax.Y);
 			Scale.Y = FMath::Clamp(Scale.Y, Settings.Constraints.YScaleMinMax.X, Settings.Constraints.YScaleMinMax.Y);
-			Scale.Y = FMath::Clamp(Scale.Z, Settings.Constraints.ZScaleMinMax.X, Settings.Constraints.ZScaleMinMax.Y);
+			Scale.Z = FMath::Clamp(Scale.Z, Settings.Constraints.ZScaleMinMax.X, Settings.Constraints.ZScaleMinMax.Y);
 			Transform.SetScale3D(Scale);
 		}
 	}
@@ -207,16 +210,27 @@ void UManipulatorComponent::SetShapeOfTypePlane(int32 Index, FManipulatorSetting
 
 FTransform UManipulatorComponent::GetSocketTransform(FName InSocketName, ERelativeTransformSpace TransformSpace) const
 {
-	const USceneComponent* Top;
-	for (Top = this; IsValid(Top) && IsValid(Top->GetAttachParent()) && IsValid(Cast<UMeshComponent>(Top)) == false ; Top = Top->GetAttachParent());
-	if (IsValid(Top))
+	if (Settings.Draw.Extras.UseAttachedSocketAsInitialOffset)
 	{
-		FString Name = Top->GetName();
-		return Top->GetSocketTransform(InSocketName, TransformSpace);
+		const USceneComponent* Top;
+		// Recursively try to find the top most component to get its socket information. 
+		for (Top = this; IsValid(Top) && IsValid(Top->GetAttachParent()) && IsValid(Cast<UMeshComponent>(Top)) == false; Top = Top->GetAttachParent());
+
+		// Make sure the top most component isn't itself... 
+		if (IsValid(Top) && Top != this && IsValid(Cast<UManipulatorComponent>(Top)) == false)
+		{
+			FString Name = Top->GetName();
+			return Top->GetSocketTransform(InSocketName, TransformSpace);
+		}
+		else
+		{
+			return Super::GetSocketTransform(InSocketName, TransformSpace);
+			//return FTransform::Identity;
+		}
 	}
 	else
 	{
-		return FTransform::Identity;
+		return Super::GetSocketTransform(InSocketName, TransformSpace);
 	}
 }
 
@@ -224,6 +238,21 @@ FTransform UManipulatorComponent::GetSocketTransform(FName InSocketName, ERelati
 void UManipulatorComponent::BeginPlay()
 {
 	Super::BeginPlay();
+}
+
+void UManipulatorComponent::ForceSelectManipulator()
+{
+	bShouldSelect = true;
+}
+
+void UManipulatorComponent::ForceDeselectManipulator()
+{
+	bShouldDeselect = true;
+}
+
+bool UManipulatorComponent::IsManipulatorSelected() const
+{
+	return bIsManipulatorSelected;
 }
 
 #if WITH_EDITOR

@@ -409,7 +409,29 @@ protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
 
-public:	
+public:
+
+	UFUNCTION(BlueprintCallable)
+	void ForceSelectManipulator();
+
+	UFUNCTION(BlueprintCallable)
+	void ForceDeselectManipulator();
+	
+	UFUNCTION(BlueprintCallable)
+	bool IsManipulatorSelected() const;
+
+	/** Controlled by the manipulator mode while its active.*/
+	UPROPERTY(BlueprintReadOnly)
+	bool bIsManipulatorSelected = false;
+
+	/** Property Used to Tell the manipulator mode if it should select or not. */ 
+	UPROPERTY(BlueprintReadOnly)
+	bool bShouldSelect = false;
+
+	/** Property used to tell the manipulator mode if it should deselect or not */
+	UPROPERTY(BlueprintReadOnly)
+	bool bShouldDeselect = false;
+	
 #if WITH_EDITOR
 	virtual bool CanEditChange(const UProperty* InProperty) const override;
 #endif

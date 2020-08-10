@@ -82,17 +82,33 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 	GEditor->GetSelectedActors()->GetSelectedObjects(SelectedActors);
 	for(AActor* SelectedActor : SelectedActors)
 	{
-		if (SelectedActor != nullptr && Owner->GetSelectedComponents()->GetTop<USceneComponent>() == nullptr)
+		// Make sure selected actor is valid AND that we don't have any components selects in the component list. 
+		if (IsValid(SelectedActor) && Owner->GetSelectedComponents()->Num() == 0)
 		{
 			TArray<UActorComponent*> Manipulators = SelectedActor->GetComponentsByClass(UManipulatorComponent::StaticClass());
 			for (UActorComponent* ActorComponent : Manipulators)
 			{
 				UManipulatorComponent* ManipulatorComponent = Cast<UManipulatorComponent>(ActorComponent);
 				// Visibility also controls whether or not it will draw.
-				if (ManipulatorComponent != nullptr && ManipulatorComponent->IsVisible())
+				if (IsValid(ManipulatorComponent) && ManipulatorComponent->IsVisible())
 				{
+					//Handle Forced Selections and removals.
+					if(ManipulatorComponent->bShouldDeselect)
+					{
+						RemoveSelectedManipulator(ManipulatorComponent);
+						ManipulatorComponent->bShouldDeselect = false;
+						SequencerUpdateTrackSelection();
+                    }
+					if(ManipulatorComponent->bShouldSelect)
+					{
+						AddNewSelectedManipulator(ManipulatorComponent);
+						ManipulatorComponent->bShouldSelect = false;
+						SequencerUpdateTrackSelection();
+					}
+                    ManipulatorComponent->bIsManipulatorSelected = IsManipulatorSelected(ManipulatorComponent);
+					
 					FManipulatorData* ManipulatorData = GetManipulatorData(ManipulatorComponent);
-
+					
 					// Set Color Based off of selection, bools handle their selection a bit different. 
 					FLinearColor DrawColor = ManipulatorComponent->Settings.Draw.BaseColor;
 					if (ManipulatorComponent->GetManipulatorID() == ManipulatorData->ID || GetBoolPropertyValueFromManipulator(ManipulatorComponent))
@@ -172,7 +188,7 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 						float UVMin = Plane.UVMin;
 						float UVMax = Plane.UVMax;
 
-						if (Plane.Material == nullptr)
+						if (IsValid(Plane.Material) == false)
 						{
 							FString MaterialPath = "/ManipulatorTools/HardCoded/MM_ManipulatorTools_ShapePlane.MM_ManipulatorTools_ShapePlane";
 							Plane.Material = (UMaterial*)StaticLoadObject(UMaterial::StaticClass(), NULL, *MaterialPath, NULL, LOAD_None, NULL);
@@ -299,7 +315,7 @@ bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewport
 		{
 			// Get the object to edit properties is the only way I could correctly get something that talked nicely to the get property value by name. 
 			UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(ManipulatorComponent);
-			if (ObjectToEditProperties != nullptr && ManipulatorComponent != nullptr && ManipulatorComponent->GetOwner() != nullptr && ManipulatorComponent->GetOwner()->GetRootComponent() != nullptr)
+			if (IsValid(ObjectToEditProperties) && IsValid(ManipulatorComponent) && IsValid(ManipulatorComponent->GetOwner()) && IsValid(ManipulatorComponent->GetOwner()->GetRootComponent()))
 			{
 				FTransform WidgetTransformNoPropertyOffset = FTransform::Identity;
 				WidgetTransform = GetManipulatorTransformWithOffsets(ManipulatorComponent, WidgetTransformNoPropertyOffset);
@@ -495,7 +511,7 @@ void FManipulatorToolsEditorEdMode::OnSequencerTrackSelectionChanged(TArray<UMov
 			FString ActorSequencerName = FString();
 
 			UMovieScenePropertyTrack* PropertyTrack = Cast<UMovieScenePropertyTrack>(Track);
-			if (PropertyTrack != nullptr)
+			if (IsValid(PropertyTrack))
 			{
 				PropertyName = PropertyTrack->GetPropertyPath();
 				FGuid MatchingGuid;
@@ -598,7 +614,7 @@ void FManipulatorToolsEditorEdMode::SequencerUpdateTrackSelection()
 					for (TSubclassOf<UMovieSceneTrack> TrackClass : TrackClasses)
 					{
 						UMovieSceneTrack* Track = Scene->FindTrack(TrackClass, Binding.GetObjectGuid(), FName(*ManipulatorData->PropertyName));
-						if (Track != nullptr)
+						if (IsValid(Track))
 						{
 							WeakSequencer.Pin()->SelectTrack(Track);
 							continue;
@@ -644,13 +660,13 @@ bool FManipulatorToolsEditorEdMode::GetSelectedManipulatorComponent(FManipulator
 	GEditor->GetSelectedActors()->GetSelectedObjects(SelectedActors);
 	for (AActor* SelectedActor : SelectedActors)
 	{
-		if (SelectedActor != nullptr)
+		if (IsValid(SelectedActor))
 		{
 			TArray<UActorComponent*> Manipulators = SelectedActor->GetComponentsByClass(UManipulatorComponent::StaticClass());
 			for (UActorComponent* ActorComponent : Manipulators)
 			{
 				UManipulatorComponent* ManipulatorComponent = Cast<UManipulatorComponent>(ActorComponent);
-				if (ManipulatorComponent != nullptr)
+				if (IsValid(ManipulatorComponent))
 				{
 					if (ManipulatorComponent->GetManipulatorID() == ManipulatorData->ID)
 					{
@@ -671,7 +687,7 @@ FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UMa
 
 FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UManipulatorComponent * ManipulatorComponent, FTransform& WidgetTransformNoPropertyOffset) const
 {
-	if (IsValid(ManipulatorComponent) == false)
+	if (IsValid(ManipulatorComponent) == false || IsValid(ManipulatorComponent->GetAttachmentRootActor()) == false)
 	{
 		return FTransform::Identity;
 	}
@@ -688,7 +704,7 @@ FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UMa
 	switch (ManipulatorComponent->Settings.Property.Type)
 	{
 	case EManipulatorPropertyType::MT_ENUM:
-		if (ObjectToEditProperties != nullptr)
+		if (IsValid(ObjectToEditProperties))
 		{
 			EnumValue = GetPropertyValueByName<uint8>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index);
 
@@ -738,11 +754,14 @@ FTransform FManipulatorToolsEditorEdMode::GetManipulatorTransformWithOffsets(UMa
 	}
 
 	PropertyTransform.NormalizeRotation();
+	SocketTransform.NormalizeRotation();
+	FTransform EnumPropertyTransform = FTransform(EnumPropertyOffset);
+	EnumPropertyTransform.NormalizeRotation();
 
 	// Compose Relative Transform, Enum Offset, Visual Offset and Actor Transform together to get the final Widget Transform.
-	WidgetTransform = PropertyTransform * FTransform(EnumPropertyOffset) * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets) * SocketTransform *  ManipulatorComponent->GetOwner()->GetActorTransform();
+	WidgetTransform = PropertyTransform * EnumPropertyTransform * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets) * SocketTransform *  ManipulatorComponent->GetOwner()->GetActorTransform();
 	WidgetTransform.NormalizeRotation();
-	WidgetTransformNoPropertyOffset = FTransform(EnumPropertyOffset) * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets) * SocketTransform * ManipulatorComponent->GetOwner()->GetActorTransform();
+	WidgetTransformNoPropertyOffset = EnumPropertyTransform * ManipulatorComponent->CombineOffsetTransforms(ManipulatorComponent->Settings.Draw.Offsets) * SocketTransform * ManipulatorComponent->GetOwner()->GetActorTransform();
 	WidgetTransformNoPropertyOffset.NormalizeRotation();
 	return WidgetTransform;
 }
@@ -759,7 +778,7 @@ bool FManipulatorToolsEditorEdMode::GetBoolPropertyValueFromManipulator(UManipul
 	if (ManipulatorComponent->Settings.Property.Type == EManipulatorPropertyType::MT_BOOL)
 	{
 		UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(ManipulatorComponent);
-		if (ObjectToEditProperties != nullptr)
+		if (IsValid(ObjectToEditProperties))
 		{
 			Output = GetPropertyValueByName<bool>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index);
 		}
@@ -774,7 +793,7 @@ void FManipulatorToolsEditorEdMode::ToggleBoolPropertyValueFromManipulator(UMani
 	{
 		bool CurrentBool = false;
 		UObject* ObjectToEditProperties = GetObjectToDisplayWidgetsFromManipulator(ManipulatorComponent);
-		if (ObjectToEditProperties != nullptr)
+		if (IsValid(ObjectToEditProperties))
 		{
 			CurrentBool = GetPropertyValueByName<bool>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index);
 
@@ -881,7 +900,7 @@ FTransform FManipulatorToolsEditorEdMode::FlipTransformOnX(FTransform Transform,
 
 void FManipulatorToolsEditorEdMode::AddNewSelectedManipulator(UManipulatorComponent* ManipulatorComponent)
 {
-	if (ManipulatorComponent != nullptr && ManipulatorComponent->GetOwner() != nullptr)
+	if (IsValid(ManipulatorComponent) && IsValid(ManipulatorComponent->GetOwner()))
 	{
 		if (!IsManipulatorSelected(ManipulatorComponent))
 		{
@@ -904,7 +923,7 @@ void FManipulatorToolsEditorEdMode::AddNewSelectedManipulator(UManipulatorCompon
 
 void FManipulatorToolsEditorEdMode::ToggleSelectedManipulator(UManipulatorComponent * ManipulatorComponent)
 {
-	if (ManipulatorComponent != nullptr)
+	if (IsValid(ManipulatorComponent))
 	{
 		if (IsManipulatorSelected(ManipulatorComponent))
 		{
@@ -920,7 +939,7 @@ void FManipulatorToolsEditorEdMode::ToggleSelectedManipulator(UManipulatorCompon
 
 void FManipulatorToolsEditorEdMode::RemoveSelectedManipulator(UManipulatorComponent * ManipulatorComponent)
 {
-	if (ManipulatorComponent != nullptr && IsManipulatorSelected(ManipulatorComponent))
+	if (IsValid(ManipulatorComponent) && IsManipulatorSelected(ManipulatorComponent))
 	{
 		for (int32 i = 0; i < NewSelectedManipulators.Num(); i++)
 		{
@@ -939,7 +958,7 @@ void FManipulatorToolsEditorEdMode::RemoveSelectedManipulator(UManipulatorCompon
 bool FManipulatorToolsEditorEdMode::IsManipulatorSelected(UManipulatorComponent * ManipulatorComponent)
 {
 	// Check if Manipulator ID already exists
-	if (ManipulatorComponent != nullptr)
+	if (IsValid(ManipulatorComponent))
 	{
 		for (FManipulatorData* SelectedManipulator : NewSelectedManipulators)
 		{
@@ -959,7 +978,7 @@ void FManipulatorToolsEditorEdMode::FindAndAddNewManipulatorSelection(FString Pr
 	GEditor->GetSelectedActors()->GetSelectedObjects(SelectedActors);
 	for (AActor* SelectedActor : SelectedActors)
 	{
-		if (SelectedActor != nullptr && Owner->GetSelectedComponents()->GetTop<USceneComponent>() == nullptr)
+		if (IsValid(SelectedActor) && Owner->GetSelectedComponents()->Num() == 0)
 		{
 			if (SelectedActor->GetActorLabel() == ActorSequencerName)
 			{
@@ -967,7 +986,7 @@ void FManipulatorToolsEditorEdMode::FindAndAddNewManipulatorSelection(FString Pr
 				for (UActorComponent* ActorComponent : Manipulators)
 				{
 					UManipulatorComponent* ManipulatorComponent = Cast<UManipulatorComponent>(ActorComponent);
-					if (ManipulatorComponent != nullptr)
+					if (IsValid(ManipulatorComponent))
 					{
 						if (ManipulatorComponent->Settings.Property.NameToEdit == PropertyName)
 						{
@@ -984,7 +1003,7 @@ void FManipulatorToolsEditorEdMode::FindAndAddNewManipulatorSelection(FString Pr
 FManipulatorData * FManipulatorToolsEditorEdMode::GetManipulatorData(UManipulatorComponent * ManipulatorComponent)
 {
 	FManipulatorData* ManipulatorData = new FManipulatorData();
-	if (ManipulatorComponent != nullptr)
+	if (IsValid(ManipulatorComponent))
 	{
 		for (FManipulatorData* SelectedManipulator : NewSelectedManipulators)
 		{
