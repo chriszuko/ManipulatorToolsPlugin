@@ -11,11 +11,11 @@
 #include "MovieSceneSequence.h"
 #include "MovieSceneTrack.h"
 #include "MovieScene.h"
-#include "MovieSceneTransformTrack.h"
-#include "MovieSceneVectorTrack.h"
-#include "MovieSceneByteTrack.h"
-#include "MovieSceneBoolTrack.h"
-#include "MovieScenePropertyTrack.h"
+#include "Tracks/MovieSceneTransformTrack.h"
+#include "Tracks/MovieSceneVectorTrack.h"
+#include "Tracks/MovieSceneByteTrack.h"
+#include "Tracks/MovieSceneBoolTrack.h"
+#include "Tracks/MovieScenePropertyTrack.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "LevelEditorViewport.h"
@@ -85,10 +85,10 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 		// Make sure selected actor is valid AND that we don't have any components selects in the component list. 
 		if (IsValid(SelectedActor) && Owner->GetSelectedComponents()->Num() == 0)
 		{
-			TArray<UActorComponent*> Manipulators = SelectedActor->GetComponentsByClass(UManipulatorComponent::StaticClass());
-			for (UActorComponent* ActorComponent : Manipulators)
+			TArray<UManipulatorComponent*> Manipulators;
+			SelectedActor->GetComponents<UManipulatorComponent>(Manipulators);
+			for (UManipulatorComponent* ManipulatorComponent : Manipulators)
 			{
-				UManipulatorComponent* ManipulatorComponent = Cast<UManipulatorComponent>(ActorComponent);
 				// Visibility also controls whether or not it will draw.
 				if (IsValid(ManipulatorComponent) && ManipulatorComponent->IsVisible())
 				{
@@ -387,7 +387,7 @@ bool FManipulatorToolsEditorEdMode::InputDelta(FEditorViewportClient* InViewport
 
 					// Prepare for editing
 					ObjectToEditProperties->PreEditChange(NULL);
-					UProperty* SetProperty = NULL;
+					FProperty* SetProperty = NULL;
 
 					// Set the property values based off of their type on the component and the name on the component.
 					switch (ManipulatorComponent->Settings.Property.Type)
@@ -564,7 +564,7 @@ void FManipulatorToolsEditorEdMode::ReduceDeSelectCounter()
 	}
 }
 
-void FManipulatorToolsEditorEdMode::SequencerKeyProperty(UObject* ObjectToKey, UProperty* propertyToUse)
+void FManipulatorToolsEditorEdMode::SequencerKeyProperty(UObject* ObjectToKey, FProperty* propertyToUse)
 {
 	if (WeakSequencer != nullptr)
 	{
@@ -662,10 +662,10 @@ bool FManipulatorToolsEditorEdMode::GetSelectedManipulatorComponent(FManipulator
 	{
 		if (IsValid(SelectedActor))
 		{
-			TArray<UActorComponent*> Manipulators = SelectedActor->GetComponentsByClass(UManipulatorComponent::StaticClass());
-			for (UActorComponent* ActorComponent : Manipulators)
+			TArray<UManipulatorComponent*> Manipulators;
+			SelectedActor->GetComponents<UManipulatorComponent>(Manipulators);
+			for (UManipulatorComponent* ManipulatorComponent : Manipulators)
 			{
-				UManipulatorComponent* ManipulatorComponent = Cast<UManipulatorComponent>(ActorComponent);
 				if (IsValid(ManipulatorComponent))
 				{
 					if (ManipulatorComponent->GetManipulatorID() == ManipulatorData->ID)
@@ -799,7 +799,7 @@ void FManipulatorToolsEditorEdMode::ToggleBoolPropertyValueFromManipulator(UMani
 
 			// Set Bool Value
 			ObjectToEditProperties->PreEditChange(NULL);
-			UProperty* SetProperty = NULL;
+			FProperty* SetProperty = NULL;
 			SetPropertyValueByName<bool>(ObjectToEditProperties, ManipulatorComponent->Settings.Property.NameToEdit, ManipulatorComponent->Settings.Property.Index, !CurrentBool, SetProperty);
 
 			SequencerKeyProperty(ObjectToEditProperties, SetProperty);
@@ -982,10 +982,10 @@ void FManipulatorToolsEditorEdMode::FindAndAddNewManipulatorSelection(FString Pr
 		{
 			if (SelectedActor->GetActorLabel() == ActorSequencerName)
 			{
-				TArray<UActorComponent*> Manipulators = SelectedActor->GetComponentsByClass(UManipulatorComponent::StaticClass());
-				for (UActorComponent* ActorComponent : Manipulators)
+				TArray<UManipulatorComponent*> Manipulators;
+				SelectedActor->GetComponents<UManipulatorComponent>(Manipulators);
+				for (UManipulatorComponent* ManipulatorComponent : Manipulators)
 				{
-					UManipulatorComponent* ManipulatorComponent = Cast<UManipulatorComponent>(ActorComponent);
 					if (IsValid(ManipulatorComponent))
 					{
 						if (ManipulatorComponent->Settings.Property.NameToEdit == PropertyName)

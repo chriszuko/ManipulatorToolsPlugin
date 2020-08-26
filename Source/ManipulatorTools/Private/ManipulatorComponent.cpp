@@ -256,7 +256,7 @@ bool UManipulatorComponent::IsManipulatorSelected() const
 }
 
 #if WITH_EDITOR
-bool UManipulatorComponent::CanEditChange(const UProperty* InProperty) const
+bool UManipulatorComponent::CanEditChange(const FProperty* InProperty) const
 {
 	const bool ParentVal = Super::CanEditChange(InProperty);
 

@@ -53,7 +53,7 @@ namespace
 	 * Returns a reference to the named property value data in the given container.
 	 */
 	template<typename T>
-	T* GetPropertyValuePtrByName(const UStruct* InStruct, void* InContainer, FString PropertyName, int32 ArrayIndex, UProperty*& OutProperty)
+	T* GetPropertyValuePtrByName(const UStruct* InStruct, void* InContainer, FString PropertyName, int32 ArrayIndex, FProperty*& OutProperty)
 	{
 		T* ValuePtr = NULL;
 
@@ -74,9 +74,10 @@ namespace
 			}
 
 			// Obtain the property info from the given structure definition
-			UProperty* CurrentProp = FindField<UProperty>(InStruct, FName(*NameToken));
+			FProperty* CurrentProp = FindFProperty<FProperty>(InStruct, FName(*NameToken));
+
 			// Check first to see if this is a simple structure (i.e. not an array of structures)
-			UStructProperty* StructProp = Cast<UStructProperty>(CurrentProp);
+			FStructProperty* StructProp = CastField<FStructProperty>(CurrentProp);
 			if (StructProp != NULL)
 			{
 				// Recursively call back into this function with the structure property and container value
@@ -85,11 +86,11 @@ namespace
 			else
 			{
 				// Check to see if this is an array
-				UArrayProperty* ArrayProp = Cast<UArrayProperty>(CurrentProp);
+				FArrayProperty* ArrayProp = CastField<FArrayProperty>(CurrentProp);
 				if (ArrayProp != NULL)
 				{
 					// It is an array, now check to see if this is an array of structures
-					StructProp = Cast<UStructProperty>(ArrayProp->Inner);
+					StructProp = CastField<FStructProperty>(ArrayProp->Inner);
 					if (StructProp != NULL)
 					{
 						FScriptArrayHelper_InContainer ArrayHelper(ArrayProp, InContainer);
@@ -104,10 +105,10 @@ namespace
 		}
 		else
 		{
-			UProperty* Prop = FindField<UProperty>(InStruct, FName(*PropertyName));
+			FProperty* Prop = FindFProperty<FProperty>(InStruct, FName(*PropertyName));
 			if (Prop != NULL)
 			{
-				if (UArrayProperty* ArrayProp = Cast<UArrayProperty>(Prop))
+				if (FArrayProperty* ArrayProp = CastField<FArrayProperty>(Prop))
 				{
 					check(ArrayIndex != INDEX_NONE);
 
@@ -138,14 +139,10 @@ namespace
 	T GetPropertyValueByName(UObject* Object, FString PropertyName, int32 PropertyIndex)
 	{
 		T Value;
-		UProperty* DummyProperty = NULL;
+		FProperty* DummyProperty = NULL;
 		if (T* ValuePtr = GetPropertyValuePtrByName<T>(Object->GetClass(), Object, PropertyName, PropertyIndex, DummyProperty))
 		{
 			Value = *ValuePtr;
-		}
-		else
-		{
-			Value = T();
 		}
 		return Value;
 	}
@@ -154,7 +151,7 @@ namespace
 	 * Sets the property with the given name in the given Actor instance to the given value.
 	 */
 	template<typename T>
-	void SetPropertyValueByName(UObject* Object, FString PropertyName, int32 PropertyIndex, const T& InValue, UProperty*& OutProperty)
+	void SetPropertyValueByName(UObject* Object, FString PropertyName, int32 PropertyIndex, const T& InValue, FProperty*& OutProperty)
 	{
 		if (T* ValuePtr = GetPropertyValuePtrByName<T>(Object->GetClass(), Object, PropertyName, PropertyIndex, OutProperty))
 		{
@@ -242,5 +239,5 @@ private:
 	int32 DeSelectCounter = 0;
 	void ResetDeSelectCounter();
 	void ReduceDeSelectCounter();
-	void SequencerKeyProperty(UObject* ObjectToKey, UProperty* propertyToUse);
+	void SequencerKeyProperty(UObject* ObjectToKey, FProperty* propertyToUse);
 };
