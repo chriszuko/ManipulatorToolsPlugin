@@ -199,11 +199,7 @@ void FManipulatorToolsEditorEdMode::Render(const FSceneView * View, FViewport * 
 						FLinearColor DrawPlaneColor = DrawColor * Plane.Color;
 
 						MaterialInstanceDynamic->SetVectorParameterValue(FName("DrawColor"), DrawPlaneColor);
-#if ENGINE_MAJOR_VERSION >= 4 && ENGINE_MINOR_VERSION > 21
-						FMaterialRenderProxy* RenderProxy = MaterialInstanceDynamic->GetRenderProxy();
-#else
 						FMaterialRenderProxy* RenderProxy = MaterialInstanceDynamic->GetRenderProxy(false);
-#endif
 						DrawPlane10x10(PDI, WidgetMatrix, PlaneSize, FVector2D(UVMin, UVMin), FVector2D(UVMax, UVMax), RenderProxy, WidgetDepthPriority);
 					}
 
